@@ -40,19 +40,37 @@ CREATE OR REPLACE VIEW sem.edge AS
   FROM core.edge_derived d;
 
 -- Traversal has to walk edges in both directions. Doing it here rather than in
--- every query is what keeps the path-finding SQL readable. Inverse predicate
--- names come from core.predicate_meta, which is generated from ontology.yaml.
+-- every query is what keeps the path-finding SQL readable.
+--
+-- CRITICAL: inverse rows carry an inverse predicate name (`directed_by`) that
+-- does NOT exist in core.predicate_meta, which is keyed on canonical names
+-- (`directed`). Any query that joins predicate_meta on `predicate` therefore
+-- silently drops every inverse edge — half the graph — and returns nothing,
+-- with no error. The first real path query hit exactly that.
+--
+-- So this view carries everything the path finder needs: the canonical
+-- predicate for joining back when necessary, the weight, the label for
+-- narration, and the intermediate-exclusion flag. Traversal never has to join
+-- predicate_meta at all.
 CREATE OR REPLACE VIEW sem.edge_bidirectional AS
   SELECT e.subject_type, e.subject_id, e.predicate, e.object_type, e.object_id,
          e.attributes, e.provenance, e.confidence,
-         false AS is_inverse, m.path_weight, m.label AS predicate_label
+         false AS is_inverse,
+         e.predicate AS canonical_predicate,
+         m.path_weight,
+         m.label AS predicate_label,
+         m.excluded_from_path_intermediates
   FROM sem.edge e
   JOIN core.predicate_meta m ON m.predicate = e.predicate
   WHERE NOT m.is_structural
   UNION ALL
   SELECT e.object_type, e.object_id, m.inverse, e.subject_type, e.subject_id,
          e.attributes, e.provenance, e.confidence,
-         true AS is_inverse, m.path_weight, m.inverse_label
+         true AS is_inverse,
+         e.predicate AS canonical_predicate,
+         m.path_weight,
+         m.inverse_label,
+         m.excluded_from_path_intermediates
   FROM sem.edge e
   JOIN core.predicate_meta m ON m.predicate = e.predicate
   WHERE NOT m.is_structural AND NOT m.is_symmetric;

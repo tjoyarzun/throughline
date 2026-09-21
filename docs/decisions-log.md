@@ -2,6 +2,42 @@
 
 Choices too small for an ADR but annoying to rediscover. Append freely, newest first.
 
+## 2026-09-20 — The ER review queue holds ambiguity, not every collision
+
+The first version queued every identical-name person collision and filled with 206 items that were
+all correct refusals: Steve McQueen the actor and Steve McQueen the director, Graham Greene the
+novelist and Graham Greene the actor, John Williams the composer and several John Williams who
+act. Zero filmography overlap is _evidence of different people_, not ambiguity. Only overlap == 1,
+or a matching birthday with no shared work, is queued now. A queue nobody reads is worse than no
+queue: it buries the cases that need a decision.
+
+## 2026-09-20 — NULL != NULL in a unique index
+
+`crosswalk_keyword_theme` has `UNIQUE (keyword_source_id, concept_id)`. Exclusions have
+`concept_id IS NULL`, and two NULLs are not equal, so `ON CONFLICT DO NOTHING` never fired and
+every reload inserted another copy. The coverage metric reported **114% adjudicated** — an
+impossible number that revealed it. Fixed with a partial unique index on `keyword_source_id WHERE
+concept_id IS NULL`, plus `count(DISTINCT ...)` because multi-theme keywords also double-counted.
+
+## 2026-09-20 — Measure coverage against what is achievable
+
+9.8% of titles have no TMDB keywords at all, so no crosswalk can ever theme them. Reporting
+themed-against-all-titles made the metric look like a crosswalk failure when it was a data
+ceiling. The report and `/api/health` now use themed-of-keyworded and state the ceiling separately.
+
+## 2026-09-20 — TMDB movie credits and TV aggregate_credits have different shapes
+
+Movie `credits.crew[]` has a flat `job`. TV `aggregate_credits.crew[]` has
+`jobs: [{job, credit_id, episode_count}]`, because a person can hold several roles across a series
+run. Caught by Zod at the provider boundary on the first live show ingest, and diagnosed from the
+captured raw payload without a refetch — which is the argument for capturing raw BEFORE parsing.
+
+## 2026-09-20 — pgrep will not find a tsx script by its script name
+
+`tsx scripts/seed.ts` runs as `node --require .../tsx/dist/preflight.cjs --import ... scripts/seed.ts`.
+`pgrep -f "tsx scripts/seed.ts"` finds nothing and you conclude the job died. Match on the script
+path alone.
+
 ## 2026-09-20 — All sem.* views need security_invoker = true
 
 Postgres views execute with the privileges and RLS context of the view OWNER unless

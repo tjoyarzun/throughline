@@ -63,10 +63,81 @@ an empty and a seeded database.
 
 ---
 
-## Phase 2 — Ingest and entity resolution
+## Phase 2 — Ingest and entity resolution ✅ COMPLETE (2026-09-20)
 
 **Goal:** 5,000 real titles and their graph are in `core`, correctly resolved.
-**Depends on:** 1. **Gated on:** editorial review of `themes.yaml`.
+**Depends on:** 1.
+
+### Delivered
+
+|                                       |                                          |
+| ------------------------------------- | ---------------------------------------- |
+| Titles                                | **4,972** (293 shows)                    |
+| People                                | 58,714                                   |
+| Credits                               | 111,606                                  |
+| `core.edge`                           | 36,468                                   |
+| **Total graph edges** (`sem.edge`)    | **148,074**                              |
+| Collections / organizations / seasons | 540 / 4,713 / 1,056                      |
+| Themes derived                        | 9,496 edges over 76% of keyworded titles |
+| ER review queue                       | 48, all genuinely ambiguous              |
+| Tests                                 | 220+                                     |
+
+TMDB client with v4 Bearer auth, a 30 req/s token bucket, circuit breaker, jittered retry and Zod
+at the boundary. Entity-resolution cascade. `core.job` queue with `FOR UPDATE SKIP LOCKED`, a cron
+drain and a health endpoint. Keyword-to-theme crosswalk. Wikidata enricher for `based_on`,
+franchises and influence.
+
+### What the data proved
+
+- **The hub penalty is not theoretical.** `Drama` is the highest-degree node in the graph at
+  **2,139** — just over the 2,000 ban threshold. Without it, "why are these connected?" would
+  route through Drama for nearly every pair.
+- **Corpus composition had to be engineered.** TMDB's `popular` endpoints are anime- and
+  recent-TV-heavy. The seed draws from four sources with different biases — critical consensus,
+  decade sampling, director filmographies, franchise completion — precisely so the Universe is not
+  a MyAnimeList clone.
+- **The ambiguous title cases are real.** `Whiplash` 2013 vs 2014, two different `Fury` films, and
+  a cluster of `Part 1`/`Part 2` pairs (Deathly Hallows, Breaking Dawn, Mockingjay) at 0.86-0.90
+  similarity with 4-5 shared cast and adjacent years. Everything says "same film" except that they
+  are deliberately different films. Only the cast-corroboration rule stopped an auto-merge.
+- **Wikidata supplies what TMDB structurally lacks.** _Arrival_ is `based_on` **"Story of Your
+  Life" by Ted Chiang** — TMDB has no field for that at all.
+
+### Findings, each caught by a test rather than review
+
+1. Writing raw keywords as `belongs_to_genre` edges was rejected by the ontology trigger. They
+   moved to `core.title_keyword`, and the `keyword` concept scheme was deleted. The ontology
+   caught a modeling error in its own ingest.
+2. Ingest was not idempotent: `persistShow` never wrote the IMDb external id, so `resolveTitle`
+   added it on the next run.
+3. TV `aggregate_credits.crew` nests `jobs: [...]` rather than a flat `job`. Caught by Zod at the
+   boundary, diagnosed from the captured raw payload without a refetch.
+4. The review queue held 206 correct refusals — every name collision, not every ambiguity. Zero
+   filmography overlap is evidence of _different people_. Now only overlap == 1 (or a matching
+   birthday) is queued.
+5. The coverage metric reported **114% adjudicated**, an impossible number. `NULL != NULL` in a
+   unique index, so exclusions re-inserted on every run; and multi-theme keywords double-counted
+   in the join. Fixed with a partial unique index and `count(DISTINCT ...)`.
+6. Theme coverage was being measured against an unreachable ceiling: **9.8% of titles have no TMDB
+   keywords at all**. The metric now reports themed-of-keyworded and states the ceiling separately.
+7. Route handlers contained SQL; `check-layers` flagged it and they moved to `src/server/`.
+8. Tests passed individually and failed together — files now run sequentially against a dedicated
+   `throughline_test` database.
+
+### Known gap
+
+`core.external_id.entity_id` is polymorphic and cannot carry a foreign key, so deleting an entity
+orphans its external ids. `mergeEntities` repoints them; a plain delete does not. Needs an orphan
+sweep in the data-quality checks.
+
+---
+
+## Phase 2 leftovers (fold into a later phase)
+
+- Admin views for the job queue and the ER review queue (the data is there; no UI yet).
+- `tmdb_changes` nightly delta handler.
+- Character resolution beyond `character_name_raw`.
+- Theme crosswalk second pass: 38% of keyword assignments are adjudicated; the tail is long.
 
 **Tasks:** TMDB client (rate limiter, retry, circuit breaker, Zod parsing, raw capture) · mappers ·
 the ER cascade · `core.job` + `claim_jobs` + drain + Vercel Cron · seed script · keyword-to-theme

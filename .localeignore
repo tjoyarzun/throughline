@@ -13,3 +13,10 @@
 # renaming a provider field breaks the contract with that API. Add them here as
 # they appear during Phase 2 ingest work, e.g.:
 # ^src/server/providers/tmdb/.*"colour"    # hypothetical TMDB field, kept verbatim
+
+# ontology/crosswalk.yaml keys are TMDB keyword strings quoted VERBATIM. The
+# provider's folksonomy carries both spellings as distinct keywords — bare
+# `theater`, but `theatre audience` and `european theatre`. Renaming them
+# would break the join to core.title_keyword. Quoted provider vocabulary is
+# exactly the exception ADR 0013 describes.
+^ontology/crosswalk\.yaml:

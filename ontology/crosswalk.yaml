@@ -184,6 +184,77 @@ excluded:
   # Too generic to discriminate. "love" appears on 47 titles and tells us nothing
   # a more specific keyword on the same title does not tell us better.
   too_generic: [love, family, romance, life, friendship story, human nature]
+  # Second sweep, measured against titles that had keywords but no theme.
+  setting_2:
+    [
+      london,
+      england,
+      paris,
+      france,
+      san francisco,
+      california,
+      chicago,
+      illinois,
+      tokyo,
+      japan,
+      rome,
+      italy,
+      france,
+      italy,
+      california,
+      usa,
+      ship,
+      airplane,
+      ocean,
+      jungle,
+      hotel,
+      restaurant,
+      train,
+      submarine,
+      '18th century',
+      '17th century',
+      '20th century',
+    ]
+  occasion:
+    [christmas, halloween, holiday, new year, thanksgiving, birthday, wedding day, summer, winter]
+  format_2:
+    [
+      stand-up comedy,
+      short compilation,
+      slapstick comedy,
+      pre-code,
+      anime film,
+      based on play or musical,
+      supernatural horror,
+      animal horror,
+      disaster film,
+      concert film,
+    ]
+  mood_2:
+    [
+      playful,
+      vibrant,
+      whimsical,
+      ambiguous,
+      horrified,
+      assertive,
+      joyous,
+      satirical,
+      surreal,
+      cliché,
+      sentimental,
+      powerful,
+      thoughtful,
+      appreciative,
+      somber,
+      melancholy,
+      witty,
+      angry,
+      enchant,
+      defiant,
+      tragic,
+      melodramatic,
+    ]
 
 mappings:
   # --- The Supernatural -------------------------------------------------------
@@ -598,3 +669,64 @@ mappings:
   spy: [{ theme: secret_identity, salience: 0.6 }, { theme: impostor_identity, salience: 0.4 }]
   nuclear war: [{ theme: apocalypse, salience: 0.8 }, { theme: war, salience: 0.6 }]
   torture: [{ theme: trauma, salience: 0.7 }, { theme: captivity, salience: 0.5 }]
+
+  # --- Third pass: measured against titles that had keywords but no theme. ---
+  fairy tale: [{ theme: magic_and_enchantment, salience: 0.7 }]
+  demonic possession: [{ theme: curses_and_the_occult, salience: 1.0 }]
+  devil: [{ theme: curses_and_the_occult, salience: 0.8 }]
+  godzilla: [{ theme: monsters_and_the_monstrous, salience: 1.0 }]
+  dinosaur:
+    [
+      { theme: monsters_and_the_monstrous, salience: 0.5 },
+      { theme: animals_and_humans, salience: 0.4 },
+    ]
+  giant monster: [{ theme: monsters_and_the_monstrous, salience: 1.0 }]
+  greek mythology:
+    [
+      { theme: magic_and_enchantment, salience: 0.5 },
+      { theme: fate_and_determinism, salience: 0.5 },
+    ]
+  mythology:
+    [
+      { theme: magic_and_enchantment, salience: 0.5 },
+      { theme: fate_and_determinism, salience: 0.4 },
+    ]
+  cold war: [{ theme: war, salience: 0.7 }, { theme: authoritarianism, salience: 0.4 }]
+  espionage:
+    [{ theme: secret_identity, salience: 0.6 }, { theme: information_and_truth, salience: 0.4 }]
+  thief: [{ theme: organized_crime, salience: 0.4 }, { theme: greed, salience: 0.4 }]
+  prostitute: [{ theme: labor_and_exploitation, salience: 0.4 }, { theme: poverty, salience: 0.4 }]
+  roman catholic church: [{ theme: religion_and_doubt, salience: 0.9 }]
+  christianity: [{ theme: religion_and_doubt, salience: 0.9 }]
+  movie business: [{ theme: storytelling_itself, salience: 0.8 }, { theme: fame, salience: 0.5 }]
+  show business: [{ theme: fame, salience: 0.7 }, { theme: performance, salience: 0.5 }]
+  experiment: [{ theme: technological_hubris, salience: 0.5 }]
+  doctor: [{ theme: caregiving, salience: 0.4 }]
+  nurse: [{ theme: caregiving, salience: 0.6 }]
+  painting: [{ theme: artistic_obsession, salience: 0.7 }]
+  concert: [{ theme: performance, salience: 0.7 }]
+  dancing: [{ theme: performance, salience: 0.6 }, { theme: craft_and_mastery, salience: 0.3 }]
+  dance: [{ theme: performance, salience: 0.6 }]
+  "rock 'n' roll": [{ theme: performance, salience: 0.5 }]
+  opera: [{ theme: performance, salience: 0.7 }]
+  theater: [{ theme: performance, salience: 0.7 }]
+  theatre group: [{ theme: performance, salience: 0.7 }]
+  theater play: [{ theme: performance, salience: 0.7 }]
+  theater director:
+    [{ theme: performance, salience: 0.6 }, { theme: craft_and_mastery, salience: 0.3 }]
+  sisters: [{ theme: sibling_rivalry, salience: 0.5 }]
+  brothers: [{ theme: sibling_rivalry, salience: 0.5 }]
+  usa president: [{ theme: leadership_and_its_cost, salience: 0.7 }]
+  king: [{ theme: leadership_and_its_cost, salience: 0.6 }]
+  journalist: [{ theme: information_and_truth, salience: 0.8 }]
+  marriage proposal: [{ theme: marriage, salience: 0.6 }]
+  courtship: [{ theme: marriage, salience: 0.5 }]
+  time: [{ theme: nonlinear_time, salience: 0.3 }]
+  loneliness and isolation: [{ theme: loneliness, salience: 1.0 }]
+  father: [{ theme: parenthood, salience: 0.5 }]
+  mother: [{ theme: parenthood, salience: 0.5 }]
+  son: [{ theme: parenthood, salience: 0.4 }]
+  childhood trauma: [{ theme: trauma, salience: 0.9 }, { theme: loss_of_innocence, salience: 0.5 }]
+  disability:
+    [{ theme: prejudice_and_otherness, salience: 0.4 }, { theme: endurance, salience: 0.4 }]
+  blindness: [{ theme: endurance, salience: 0.5 }]

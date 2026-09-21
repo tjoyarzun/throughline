@@ -15,6 +15,13 @@
       "when": 1789963384225,
       "tag": "0001_living_devos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789965161984,
+      "tag": "0002_lying_millenium_guard",
+      "breakpoints": true
     }
   ]
 }

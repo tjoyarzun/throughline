@@ -260,12 +260,37 @@ export async function resolvePerson(sql: Sql, c: PersonCandidate): Promise<Resol
       return { entityId: cand.id, method: 'fuzzy_corroborated', created: false };
     }
 
-    await queueReview(sql, 'person', 'tmdb', String(c.tmdbId), cand.id, 1.0, {
-      incoming: { name: c.name, birthday: c.birthday, normalized },
-      candidate_birthday: cand.birthday,
-      filmography_overlap: overlap,
-      reason: 'identical name, insufficient filmography overlap',
-    });
+    /**
+     * ZERO overlap is NOT ambiguity — it is evidence of two different people.
+     *
+     * The first version queued every name collision, and the queue filled with
+     * 206 items that were all correct refusals: Steve McQueen the actor and
+     * Steve McQueen the director, Graham Greene the novelist and Graham Greene
+     * the actor, John Williams the composer and several John Williams who act.
+     * No human will ever work through a queue of obviously-different people,
+     * and a review queue nobody reads is worse than none — it buries the cases
+     * that genuinely need a decision.
+     *
+     * So only the middle band is queued: exactly one shared title, which is
+     * too little to merge on and too much to dismiss. A matching birthday with
+     * no shared work is also queued, because that combination is suspicious.
+     *
+     * The cost of being wrong here is asymmetric and in our favor: a missed
+     * merge leaves a duplicate, which mergeEntities() fixes later. A wrong
+     * merge destroys two identities and needs a revert.
+     */
+    const birthdayMatches =
+      c.birthday !== null && cand.birthday !== null && c.birthday === cand.birthday;
+    if (overlap === 1 || birthdayMatches) {
+      await queueReview(sql, 'person', 'tmdb', String(c.tmdbId), cand.id, 1.0, {
+        incoming: { name: c.name, birthday: c.birthday, normalized },
+        candidate_birthday: cand.birthday,
+        filmography_overlap: overlap,
+        reason: birthdayMatches
+          ? 'identical name and birthday, but no shared filmography'
+          : 'identical name, exactly one shared title',
+      });
+    }
   }
 
   return { entityId: '', method: 'created', created: true };

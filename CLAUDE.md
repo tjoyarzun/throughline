@@ -7,17 +7,31 @@ two things connected?"_ with ranked, narrated paths through a knowledge graph.
 
 Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
 
-## Current phase: 2 — Ingest and entity resolution
+## Current phase: 3 — Auth and shell
 
-Phases 0 and 1 are complete: the ontology compiles, the database enforces it, RLS isolates users,
-144 tests pass. **Do not build features from later phases.** Phase 2 is the TMDB client, the entity
-resolution cascade, the job queue, the theme crosswalk, and the seed corpus — still no new UI beyond
-the admin tables. **Gated on editorial review of `ontology/themes.yaml`.**
+Phases 0-2 are complete. The corpus is loaded: **4,972 titles, 58,714 people, 111,606 credits,
+148,074 graph edges**, 120 themes derived over 76% of keyworded titles. **Do not build features
+from later phases.** Phase 3 is Better Auth, invite-only signup, middleware and `/me` — it depends
+on Phase 1 only and could have run in parallel with Phase 2.
 The phase plan is in [docs/development-plan.md](docs/development-plan.md).
 
-Local database: Homebrew `postgresql@17`, database `throughline_dev`. `pnpm db:migrate` is
-idempotent and safe to re-run. `pnpm db:test-role` creates the non-superuser role the authz suite
-requires.
+### Local databases
+
+| Database           | Purpose                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `throughline_dev`  | The seeded corpus. `DATABASE_URL`.                                                            |
+| `throughline_test` | Test fixtures only. `TEST_ADMIN_DATABASE_URL`; `tests/setup.ts` redirects every DB test here. |
+
+Tests MUST NOT run against `throughline_dev` — entity-resolution fixtures collide with the real
+corpus (there is an actual _The Office_ in there) and the failures look like resolver bugs.
+
+```bash
+pnpm db:migrate      # idempotent, safe to re-run
+pnpm db:test-role    # the non-superuser role the authz suite requires
+pnpm seed            # resumable; already-ingested titles resolve cheaply
+pnpm derive:themes   # replays the crosswalk with no re-crawl
+pnpm enrich:wikidata # based_on, franchises, influence
+```
 
 ## Read before you work
 
@@ -71,6 +85,15 @@ These are decided. Do not relitigate them without writing an ADR.
   shared bundle.
 - **TMDB images never go through the Next image optimizer.** [ADR 0012](docs/adr/0012-tmdb-images-bypass-next-optimizer.md)
 - **New user-facing metric → `ontology/metrics.yaml`**, not SQL in a component.
+- **Raw provider keywords go to `core.title_keyword`** — never `core.concept`, never `core.edge`.
+  A folksonomy is provider input to the crosswalk, not ontological fact. The ontology trigger
+  rejects it as an edge, correctly.
+- **The entity-resolution review queue holds AMBIGUITY, not every collision.** Zero filmography
+  overlap is evidence of two different people (Steve McQueen the actor and Steve McQueen the
+  director), not a case for a human. A queue nobody reads is worse than no queue.
+- **Ingest must stay idempotent.** Re-running produces identical `core` state apart from
+  `synced_at`, asserted by `tests/integration/idempotency.test.ts`. Without it the seed cannot be
+  resumed and the nightly delta corrupts the corpus a little every night.
 - **American English (en-US)** in all copy, docs, comments, commit messages, and identifiers we
   author. Enforced by `scripts/check-locale.sh` + cspell in CI and pre-commit. Exceptions (provider
   field names, quoted material, proper nouns) go in `.localeignore` with a reason. Do not

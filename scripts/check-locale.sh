@@ -26,7 +26,10 @@ STEMS="$STEMS|parameteris|synchronis|sanitis|randomis|tokenis|modernis|digitis|c
 STEMS="$STEMS|rationalis|stabilis|legitimis|harmonis|customis|itemis|memoris|criticis|civilis"
 STEMS="$STEMS|colonis|familiaris|hypothesis[ei]|mobilis|computeris|containeris|factoris|formalis"
 STEMS="$STEMS|globalis|industrialis|marginalis|modularis|neutralis|publicis|analys|paralys|catalys"
-STEM_RE="\\b(${STEMS})(e|es|ed|ing|ation|ations|able|ability|er|ers)?\\b"
+# A leading [a-z]* is required, not optional polish: anchoring the stem at a
+# word boundary misses every prefixed form. `unrecognised` slipped through the
+# first version of this check and reached a commit.
+STEM_RE="\\b[a-z]*(${STEMS})(e|es|ed|ing|ation|ations|able|ability|er|ers)?\\b"
 
 # -- Literal British forms ---------------------------------------------------
 WORDS='colour|colours|coloured|colouring|colourful|behaviour|behaviours|behavioural'

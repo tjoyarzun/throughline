@@ -481,6 +481,13 @@ export const crosswalkKeywordTheme = core.table(
   },
   (t) => [
     uniqueIndex('crosswalk_keyword_concept_uq').on(t.keywordSourceId, t.conceptId),
+    // NULL != NULL in a unique index, so the composite above does NOT dedupe
+    // exclusions (concept_id IS NULL). Without this partial index every reload
+    // inserted another copy of every excluded keyword, and the coverage metric
+    // reported 114% adjudicated — an impossible number that revealed the bug.
+    uniqueIndex('crosswalk_exclusion_uq')
+      .on(t.keywordSourceId)
+      .where(sql`concept_id is null`),
     index('crosswalk_keyword_idx').on(t.keywordSourceId),
   ],
 );

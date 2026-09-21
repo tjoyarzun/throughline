@@ -66,7 +66,16 @@ core.node_degree    MATVIEW: node_type, node_id, degree, degree_by_predicate   (
 core.person_bacon   person_id PK, bacon_number, via_person_id, via_title_id     (Phase 2)
 core.job            id, kind, payload, status, attempts, run_after, locked_at, last_error
 core.path_cache     pair key, paths jsonb, computed_at
+core.title_keyword  (title_id, keyword_source_id) PK, keyword_label, source
+                    Raw provider folksonomy. NOT concepts, NOT edges — input to
+                    the crosswalk only. Writing these as belongs_to_genre edges
+                    was rejected by the ontology trigger, correctly.
 core.crosswalk_keyword_theme   keyword_source_id, keyword_label, concept_id, salience, decided_by
+                    A NULL concept_id means "considered and deliberately excluded",
+                    which is different information from "never looked at". Needs a
+                    PARTIAL unique index on keyword_source_id WHERE concept_id IS NULL,
+                    because NULL != NULL in a composite unique index and exclusions
+                    would otherwise re-insert on every reload.
 core.er_review      candidate pair, evidence jsonb, status
 ```
 

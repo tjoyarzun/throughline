@@ -59,7 +59,8 @@ async function main(): Promise<void> {
   // 2. The crosswalk itself, keyed by keyword LABEL because TMDB keyword ids
   //    are stable but the mapping is authored against human-readable names.
   console.log('2. loading crosswalk');
-  await sql`DELETE FROM core.crosswalk_keyword_theme WHERE decided_by = 'llm_draft'`;
+  // The file is the source of truth, so the table is rebuilt wholesale.
+  await sql`DELETE FROM core.crosswalk_keyword_theme`;
   let pairs = 0;
   for (const [keyword, mappings] of Object.entries(cw.mappings)) {
     for (const m of mappings) {
@@ -83,7 +84,7 @@ async function main(): Promise<void> {
         INSERT INTO core.crosswalk_keyword_theme
           (keyword_source_id, keyword_label, concept_id, salience, decided_by, notes)
         VALUES (${k}, ${k}, NULL, 0, 'human', ${`excluded: ${reason}`})
-        ON CONFLICT DO NOTHING`;
+        ON CONFLICT (keyword_source_id) WHERE concept_id IS NULL DO NOTHING`;
     }
   }
   console.log(
@@ -121,49 +122,83 @@ async function main(): Promise<void> {
     RETURNING 1 AS n`;
   console.log(`   ${inserted.length} theme edges`);
 
-  // 4. Coverage, reported honestly.
+  // 4. Coverage, reported against what is actually achievable.
+  //
+  // Measuring themed titles against ALL titles is misleading: some titles have
+  // no TMDB keywords at all, and no crosswalk can theme those. That share is an
+  // absolute ceiling, so it is reported separately rather than counted as a
+  // crosswalk failure.
   const [cov] = await sql<
     {
       titles: number;
-      with_theme: number;
+      no_keywords: number;
+      with_keywords: number;
+      themed: number;
       distinct_keywords: number;
       mapped_keywords: number;
       excluded_keywords: number;
       assignments: number;
       mapped_assignments: number;
+      excluded_assignments: number;
     }[]
   >`
+    WITH t AS (
+      SELECT ti.id,
+             EXISTS (SELECT 1 FROM core.title_keyword k WHERE k.title_id = ti.id) AS has_kw,
+             EXISTS (SELECT 1 FROM core.edge e
+                     WHERE e.subject_id = ti.id AND e.predicate = 'explores_theme') AS themed
+      FROM core.title ti
+    )
     SELECT
-      (SELECT count(*)::int FROM core.title)                                        AS titles,
-      (SELECT count(DISTINCT subject_id)::int FROM core.edge
-        WHERE predicate = 'explores_theme')                                         AS with_theme,
-      (SELECT count(DISTINCT lower(keyword_label))::int FROM core.title_keyword)    AS distinct_keywords,
+      (SELECT count(*)::int FROM t)                                   AS titles,
+      (SELECT count(*)::int FROM t WHERE NOT has_kw)                  AS no_keywords,
+      (SELECT count(*)::int FROM t WHERE has_kw)                      AS with_keywords,
+      (SELECT count(*)::int FROM t WHERE has_kw AND themed)           AS themed,
+      (SELECT count(DISTINCT lower(keyword_label))::int FROM core.title_keyword) AS distinct_keywords,
       (SELECT count(DISTINCT lower(tk.keyword_label))::int FROM core.title_keyword tk
         JOIN core.crosswalk_keyword_theme x ON lower(x.keyword_label) = lower(tk.keyword_label)
-        WHERE x.concept_id IS NOT NULL)                                             AS mapped_keywords,
+        WHERE x.concept_id IS NOT NULL)                               AS mapped_keywords,
       (SELECT count(DISTINCT lower(tk.keyword_label))::int FROM core.title_keyword tk
         JOIN core.crosswalk_keyword_theme x ON lower(x.keyword_label) = lower(tk.keyword_label)
-        WHERE x.concept_id IS NULL)                                                 AS excluded_keywords,
-      (SELECT count(*)::int FROM core.title_keyword)                                AS assignments,
-      (SELECT count(*)::int FROM core.title_keyword tk
+        WHERE x.concept_id IS NULL)                                   AS excluded_keywords,
+      (SELECT count(*)::int FROM core.title_keyword)                  AS assignments,
+      (SELECT count(DISTINCT (tk.title_id, lower(tk.keyword_label)))::int
+        FROM core.title_keyword tk
         JOIN core.crosswalk_keyword_theme x ON lower(x.keyword_label) = lower(tk.keyword_label)
-        WHERE x.concept_id IS NOT NULL)                                             AS mapped_assignments`;
+        WHERE x.concept_id IS NOT NULL)                               AS mapped_assignments,
+      (SELECT count(DISTINCT (tk.title_id, lower(tk.keyword_label)))::int
+        FROM core.title_keyword tk
+        JOIN core.crosswalk_keyword_theme x ON lower(x.keyword_label) = lower(tk.keyword_label)
+        WHERE x.concept_id IS NULL)                                   AS excluded_assignments`;
 
-  const pct = (a: number, b: number) => (b === 0 ? '0' : ((100 * a) / b).toFixed(1));
+  const pct = (a: number, b: number) => (b === 0 ? '0.0' : ((100 * a) / b).toFixed(1));
+  const c = cov!;
   console.log('\ncoverage');
   console.log(
-    `  titles with >=1 theme      ${cov!.with_theme}/${cov!.titles}  (${pct(cov!.with_theme, cov!.titles)}%)`,
+    `  THEMED, of titles that have keywords   ${c.themed}/${c.with_keywords}  (${pct(c.themed, c.with_keywords)}%)   <- the number that matters`,
   );
   console.log(
-    `  distinct keywords mapped   ${cov!.mapped_keywords}/${cov!.distinct_keywords}  (${pct(cov!.mapped_keywords, cov!.distinct_keywords)}%)`,
+    `  titles with no TMDB keywords at all    ${c.no_keywords}/${c.titles}  (${pct(c.no_keywords, c.titles)}%)   <- hard ceiling, not a crosswalk gap`,
   );
-  console.log(`  ... deliberately excluded  ${cov!.excluded_keywords}`);
   console.log(
-    `  keyword ASSIGNMENTS mapped ${cov!.mapped_assignments}/${cov!.assignments}  (${pct(cov!.mapped_assignments, cov!.assignments)}%)`,
+    `  themed, of ALL titles                  ${c.themed}/${c.titles}  (${pct(c.themed, c.titles)}%)`,
   );
-  console.log('\n  Distinct-keyword coverage is low BY DESIGN — the tail is 1,800+ terms');
-  console.log('  appearing once each, mostly settings and objects. Assignment coverage');
-  console.log('  is the number that matters: it weights by how often a keyword is used.');
+  console.log('');
+  console.log(
+    `  keyword assignments mapped             ${c.mapped_assignments}/${c.assignments}  (${pct(c.mapped_assignments, c.assignments)}%)`,
+  );
+  console.log(
+    `  ... plus deliberately excluded         ${c.excluded_assignments}  (${pct(c.mapped_assignments + c.excluded_assignments, c.assignments)}% adjudicated)`,
+  );
+  console.log(
+    `  distinct keywords mapped               ${c.mapped_keywords}/${c.distinct_keywords}  (${pct(c.mapped_keywords, c.distinct_keywords)}%)`,
+  );
+  console.log('');
+  console.log('  Distinct-keyword coverage is low BY DESIGN: the tail is thousands of');
+  console.log('  terms used once each, overwhelmingly settings and objects. Assignment');
+  console.log('  coverage weights by how often a keyword is actually used, and');
+  console.log('  "adjudicated" counts terms we considered and deliberately excluded —');
+  console.log('  which is different information from never having looked at them.');
 
   await sql.end();
 }

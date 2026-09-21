@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "crosswalk_exclusion_uq" ON "core"."crosswalk_keyword_theme" USING btree ("keyword_source_id") WHERE concept_id is null;

@@ -363,6 +363,41 @@ run('entity resolution', () => {
     expect(r.entityId).toBe(existing);
   });
 
+  it('does NOT queue an identical name with zero shared filmography', async () => {
+    // Zero overlap is evidence of two different people, not ambiguity. Steve
+    // McQueen the actor and Steve McQueen the director share a name and nothing
+    // else. Queueing these filled the review queue with 206 correct refusals
+    // and buried the cases that actually need a decision — a queue nobody reads
+    // is worse than no queue.
+    const t1 = await makeTitle(sql, {
+      slug: 'p4a',
+      kind: 'movie',
+      title: 'Film D',
+      year: 2010,
+      tmdbId: 900090,
+    });
+    const t2 = await makeTitle(sql, {
+      slug: 'p4b',
+      kind: 'movie',
+      title: 'Film E',
+      year: 2015,
+      tmdbId: 900091,
+    });
+    const existing = await makePerson(sql, { name: 'Steve Namesake', tmdbId: 900092 });
+    await cast(sql, existing, t1);
+
+    const r = await resolvePerson(sql, {
+      tmdbId: 900093,
+      imdbId: null,
+      name: 'Steve Namesake',
+      birthday: null,
+      knownTitleIds: [t2], // no overlap with the existing person at all
+    });
+    expect(r.created).toBe(true);
+    const review = await sql`SELECT * FROM core.er_review WHERE incoming_source_id = '900093'`;
+    expect(review, 'zero overlap must not reach the queue').toHaveLength(0);
+  });
+
   it('queues, rather than guesses, on an identical name with one shared title', async () => {
     const t1 = await makeTitle(sql, {
       slug: 'p3a',
