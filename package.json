@@ -23,10 +23,17 @@
     "check-env": "tsx scripts/check-env.ts",
     "verify": "pnpm check-drift && pnpm typecheck && pnpm lint && pnpm check-locale && pnpm check-spelling && pnpm check-layers && pnpm test",
     "check-layers": "bash scripts/check-layers.sh",
-    "check-drift": "pnpm codegen && git diff --exit-code -- src/lib/ontology/generated.ts drizzle/generated docs/ontology-reference.md"
+    "check-drift": "tsx scripts/check-drift.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:test-role": "tsx scripts/db-test-role.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "drizzle-orm": "^0.45.2",
     "next": "16.3.5",
+    "postgres": "^3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "^4.6.5"
@@ -38,6 +45,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "cspell": "^10.3.3",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.5",
     "lefthook": "^2.1.14",

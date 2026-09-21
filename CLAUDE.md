@@ -7,11 +7,17 @@ two things connected?"_ with ranked, narrated paths through a knowledge graph.
 
 Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
 
-## Current phase: 1 — Canonical data model
+## Current phase: 2 — Ingest and entity resolution
 
-Phase 0 (foundation) is complete: ontology compiles, tokens tested, app shell renders, CI green.
-**Do not build features from later phases.** Phase 1 is schemas, views, RLS, and generated
-constraints — no UI beyond what already exists. The phase plan is in [docs/development-plan.md](docs/development-plan.md).
+Phases 0 and 1 are complete: the ontology compiles, the database enforces it, RLS isolates users,
+144 tests pass. **Do not build features from later phases.** Phase 2 is the TMDB client, the entity
+resolution cascade, the job queue, the theme crosswalk, and the seed corpus — still no new UI beyond
+the admin tables. **Gated on editorial review of `ontology/themes.yaml`.**
+The phase plan is in [docs/development-plan.md](docs/development-plan.md).
+
+Local database: Homebrew `postgresql@17`, database `throughline_dev`. `pnpm db:migrate` is
+idempotent and safe to re-run. `pnpm db:test-role` creates the non-superuser role the authz suite
+requires.
 
 ## Read before you work
 
@@ -47,8 +53,17 @@ These are decided. Do not relitigate them without writing an ADR.
 - **Never hand-edit** `src/lib/ontology/generated.ts`, `drizzle/generated/**`, or
   `docs/ontology-reference.md`. They are build output and CI compares them.
 - **All `usr.*` access goes through `withUser(accountId, …)`** — an explicit transaction on the
-  pooled connection. Neon's HTTP driver runs each query in its own implicit transaction, so
-  `SET LOCAL app.account_id` silently evaporates and RLS returns zero rows. [security.md](docs/security.md)
+  pooled connection. Two independent reasons, either sufficient: Neon's HTTP driver runs each query
+  in its own implicit transaction, so a separate `SET LOCAL` evaporates and RLS returns zero rows;
+  and pgbouncer hands the backend to the next request at commit, so a plain `SET` would leak the
+  account id across tenants. [security.md](docs/security.md)
+- **Every `sem.*` view must be `ALTER VIEW … SET (security_invoker = true)`.** Postgres views run as
+  their OWNER by default, which bypasses RLS. Without this, `sem.user_title` returns every user's
+  ratings to every user while all base-table RLS tests pass. `drizzle/sql/20-views.sql` sets it for
+  each view; add the line when you add a view.
+- **Never test authorization as a superuser.** Superusers and `BYPASSRLS` roles ignore RLS even with
+  `FORCE`, so the suite passes vacuously. Tests connect via `TEST_DATABASE_URL` as
+  `throughline_app`, and assert they cannot bypass before asserting anything else.
 - **Every repository function touching user data takes `accountId` as its first parameter.** Never
   read it from ambient context.
 - **A zero-row read where a row was asserted to exist is a bug, not an empty state.** Throw.

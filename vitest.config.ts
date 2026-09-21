@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/{unit,ontology}/**/*.test.ts'],
+    include: ['tests/{unit,ontology,authz,integration}/**/*.test.ts'],
     reporters: ['default'],
   },
   resolve: {

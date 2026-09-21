@@ -251,6 +251,99 @@ function emitSql(): string {
   L.push('  RETURN NEW;');
   L.push('END;');
   L.push('$$ LANGUAGE plpgsql;', '');
+  L.push('-- Predicate metadata IN the database: domain, range, subtype constraints,');
+  L.push('-- inverses and path weights. The validation trigger below is generic logic');
+  L.push('-- over this table, NOT generated branches — so adding a predicate changes');
+  L.push('-- data, never code.');
+  L.push('CREATE TABLE IF NOT EXISTS core.predicate_meta (');
+  L.push('  predicate text PRIMARY KEY,');
+  L.push('  label text NOT NULL,');
+  L.push('  inverse text NOT NULL,');
+  L.push('  inverse_label text NOT NULL,');
+  L.push('  storage text NOT NULL,');
+  L.push('  domain_types text[] NOT NULL,');
+  L.push('  range_types text[] NOT NULL,');
+  L.push('  range_concept_schemes text[],');
+  L.push('  range_org_kinds text[],');
+  L.push('  path_weight numeric,');
+  L.push('  is_symmetric boolean NOT NULL DEFAULT false,');
+  L.push('  is_structural boolean NOT NULL DEFAULT false,');
+  L.push('  excluded_from_path_intermediates boolean NOT NULL DEFAULT false');
+  L.push(');');
+  L.push('TRUNCATE core.predicate_meta;');
+  L.push('INSERT INTO core.predicate_meta (predicate, label, inverse, inverse_label, storage,');
+  L.push('  domain_types, range_types, range_concept_schemes, range_org_kinds,');
+  L.push('  path_weight, is_symmetric, is_structural, excluded_from_path_intermediates)');
+  L.push('VALUES');
+  const arr = (v: string[]): string =>
+    v.length ? `ARRAY[${v.map((x) => `'${x}'`).join(',')}]::text[]` : 'NULL';
+  const rows = predicateNames.map((n) => {
+    const p = onto.predicates[n]!;
+    const inv = onto.predicates[p.inverse];
+    // Inverses are not themselves declared predicates, so derive a readable
+    // label from the name rather than reusing the forward one.
+    const invLabel = inv ? inv.label : p.inverse.replace(/_/g, ' ');
+    const dom = [...new Set(p.domain.map(baseType))];
+    const rng = [...new Set(p.range.map(baseType))];
+    const schemes = p.range
+      .filter((r) => baseType(r) === 'concept')
+      .map(subType)
+      .filter(Boolean) as string[];
+    const orgKinds = p.range
+      .filter((r) => baseType(r) === 'organization')
+      .map(subType)
+      .filter(Boolean) as string[];
+    return `  ('${n}', ${q(p.label)}, '${p.inverse}', ${q(invLabel)}, '${p.storage}', ${arr(dom)}, ${arr(rng)}, ${arr(schemes)}, ${arr(orgKinds)}, ${p.path_weight ?? 'NULL'}, ${Boolean(p.symmetric)}, ${Boolean(p.structural)}, ${Boolean(p.excluded_from_path_intermediates)})`;
+  });
+  L.push(rows.join(',\n') + ';');
+  L.push('');
+
+  L.push('-- Generic domain/range/subtype enforcement driven entirely by the table above.');
+  L.push('CREATE OR REPLACE FUNCTION core.assert_edge_valid() RETURNS trigger AS $$');
+  L.push('DECLARE m core.predicate_meta%ROWTYPE; obj_scheme text; obj_kind text;');
+  L.push('BEGIN');
+  L.push('  SELECT * INTO m FROM core.predicate_meta WHERE predicate = NEW.predicate;');
+  L.push('  IF NOT FOUND THEN');
+  L.push(`    RAISE EXCEPTION 'predicate % is not declared in ontology.yaml', NEW.predicate;`);
+  L.push('  END IF;');
+  L.push('');
+  L.push("  IF m.storage <> TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME THEN");
+  L.push(`    RAISE EXCEPTION 'predicate % is stored in %, not %.%',`);
+  L.push('      NEW.predicate, m.storage, TG_TABLE_SCHEMA, TG_TABLE_NAME;');
+  L.push('  END IF;');
+  L.push('');
+  L.push('  IF NOT (NEW.subject_type = ANY (m.domain_types)) THEN');
+  L.push(`    RAISE EXCEPTION 'ontology violation: % subject must be one of %, got %',`);
+  L.push('      NEW.predicate, m.domain_types, NEW.subject_type;');
+  L.push('  END IF;');
+  L.push('  IF NOT (NEW.object_type = ANY (m.range_types)) THEN');
+  L.push(`    RAISE EXCEPTION 'ontology violation: % object must be one of %, got %',`);
+  L.push('      NEW.predicate, m.range_types, NEW.object_type;');
+  L.push('  END IF;');
+  L.push('');
+  L.push("  IF m.range_concept_schemes IS NOT NULL AND NEW.object_type = 'concept' THEN");
+  L.push('    SELECT scheme INTO obj_scheme FROM core.concept WHERE id = NEW.object_id;');
+  L.push('    IF obj_scheme IS NULL OR NOT (obj_scheme = ANY (m.range_concept_schemes)) THEN');
+  L.push(`      RAISE EXCEPTION 'ontology violation: % requires a concept in scheme %, got %',`);
+  L.push("        NEW.predicate, m.range_concept_schemes, coalesce(obj_scheme, '<missing>');");
+  L.push('    END IF;');
+  L.push('  END IF;');
+  L.push('');
+  L.push("  IF m.range_org_kinds IS NOT NULL AND NEW.object_type = 'organization' THEN");
+  L.push('    SELECT kind INTO obj_kind FROM core.organization WHERE id = NEW.object_id;');
+  L.push('    IF obj_kind IS NULL OR NOT (obj_kind = ANY (m.range_org_kinds)) THEN');
+  L.push(
+    `      RAISE EXCEPTION 'ontology violation: % requires an organization of kind %, got %',`,
+  );
+  L.push("        NEW.predicate, m.range_org_kinds, coalesce(obj_kind, '<missing>');");
+  L.push('    END IF;');
+  L.push('  END IF;');
+  L.push('');
+  L.push('  RETURN NEW;');
+  L.push('END;');
+  L.push('$$ LANGUAGE plpgsql;');
+  L.push('');
+
   for (const t of ['core.edge', 'core.edge_derived']) {
     const trig = t.replace('.', '_');
     L.push(`DROP TRIGGER IF EXISTS ${trig}_assert_valid ON ${t};`);

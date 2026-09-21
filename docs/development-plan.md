@@ -28,10 +28,26 @@ fail against their fixtures and pass against the repo.
 
 ---
 
-## Phase 1 — Canonical data model
+## Phase 1 — Canonical data model ✅ COMPLETE (2026-09-20)
 
 **Goal:** four schemas exist; generated constraints enforce the ontology.
 **Depends on:** 0.
+
+Delivered: 24 tables across `raw`/`core`/`usr` with all indexes · 9 `sem.*` views, every one
+`security_invoker` · `core.predicate_meta` generated from the ontology, carrying domain, range,
+subtype constraints, inverses and path weights · a generic `assert_edge_valid()` trigger driven by
+that table · `uuid_generate_v7()` and `normalize_title()` · RLS with `FORCE` on all eight user
+tables · `app_web` / `app_ingest` roles · `core.node_degree` matview · `withUser()` · an idempotent
+migration runner · 144 tests.
+
+Three findings, each caught by a test rather than by review:
+
+- **`sem.user_title` leaked across users.** Views run as their owner, which bypasses RLS. Every
+  user's ratings and history were readable by every other user _through the semantic layer_ while
+  base-table RLS tests passed. Fixed with `security_invoker = true` on all nine views.
+- **The authz suite was passing vacuously.** The local role was a superuser, and superusers ignore
+  RLS even with `FORCE`. Tests now connect as a restricted role and assert they cannot bypass.
+- **`symmetric` is a reserved word** in Postgres (`BETWEEN SYMMETRIC`); renamed `is_symmetric`.
 
 **Tasks:** Drizzle schemas for `raw`/`core`/`usr` · all indexes from [data-model.md](data-model.md) ·
 `sem.*` views (title, node, edge, edge_bidirectional, person, concept) · apply generated `CHECK` +

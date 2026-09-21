@@ -11,6 +11,31 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    # Integration and authorization tests need a real Postgres: RLS cannot be
+    # unit-tested, because the point is that the DATABASE refuses. Plain
+    # Postgres, not Neon — CI has no business holding production credentials,
+    # and Postgres 17 is Postgres 17.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: throughline_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/throughline_test
+      DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/throughline_test
+      TEST_DATABASE_URL: postgresql://throughline_app:ci_only_password@localhost:5432/throughline_test
+      TEST_DB_PASSWORD: ci_only_password
+
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -40,6 +65,14 @@ jobs:
 
       - name: Layer boundary (sem.* only)
         run: pnpm check-layers
+
+      - name: Apply database
+        run: pnpm db:migrate
+
+      # Non-superuser role. Superusers bypass RLS even with FORCE, which would
+      # make every isolation assertion pass while proving nothing.
+      - name: Create restricted test role
+        run: pnpm db:test-role
 
       - name: Tests
         run: pnpm test

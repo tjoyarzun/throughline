@@ -2,6 +2,43 @@
 
 Choices too small for an ADR but annoying to rediscover. Append freely, newest first.
 
+## 2026-09-20 — All sem.* views need security_invoker = true
+
+Postgres views execute with the privileges and RLS context of the view OWNER unless
+`security_invoker` is set (PG15+). Ours are owned by the migration role, which bypasses RLS, so
+`sem.user_title` returned one user's rows to another while every base-table policy test passed.
+`drizzle/sql/20-views.sql` sets it on all nine views. Add the ALTER when you add a view.
+
+## 2026-09-20 — Authorization tests must not run as a superuser
+
+Superusers and `BYPASSRLS` roles ignore RLS even with `FORCE ROW LEVEL SECURITY`. The first version
+of the authz suite connected as the migration owner and passed vacuously. `pnpm db:test-role`
+creates `throughline_app` (NOSUPERUSER, NOBYPASSRLS, member of `app_web`), the suite connects as it
+via `TEST_DATABASE_URL`, and the first assertion is that the role cannot bypass.
+
+## 2026-09-20 — The edge-validation trigger is data-driven, not generated branches
+
+The first version generated a 14-branch `CASE` from ontology.yaml. It could not tell "undeclared
+predicate" from "valid predicate, wrong table", so inserting `directed` into `core.edge_derived`
+reported "predicate directed is not declared in ontology.yaml" — actively misleading in an ingest
+log. `core.predicate_meta` now carries domain, range, and subtype arrays, and the trigger is ~30
+lines of generic logic over it. Adding a predicate changes data, never code.
+
+## 2026-09-20 — `symmetric` is a reserved word in Postgres
+
+`BETWEEN SYMMETRIC`. Column renamed `is_symmetric` rather than quoting it everywhere.
+
+## 2026-09-20 — drizzle-kit cannot introspect namespace re-exports
+
+`export * as core from './core'` yields "0 tables". `drizzle.config.ts` lists the schema files
+explicitly. `drizzle/schema/index.ts` stays a namespace barrel for application imports.
+
+## 2026-09-20 — drizzle-kit emits bare CREATE SCHEMA
+
+Which collides with `00-bootstrap.sql`, and bootstrap must run first because
+`core.uuid_generate_v7()` is a column default on every table. `scripts/db-migrate.ts` rewrites that
+one statement form to `IF NOT EXISTS` and wraps each migration file in a transaction.
+
 ## 2026-09-20 — ESLint pinned to 9.x, not 10
 
 `@typescript-eslint/scope-manager@8.70.0` does not implement ESLint 10's `SourceCode` API, despite

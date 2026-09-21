@@ -97,6 +97,95 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Predicate metadata IN the database: domain, range, subtype constraints,
+-- inverses and path weights. The validation trigger below is generic logic
+-- over this table, NOT generated branches — so adding a predicate changes
+-- data, never code.
+CREATE TABLE IF NOT EXISTS core.predicate_meta (
+  predicate text PRIMARY KEY,
+  label text NOT NULL,
+  inverse text NOT NULL,
+  inverse_label text NOT NULL,
+  storage text NOT NULL,
+  domain_types text[] NOT NULL,
+  range_types text[] NOT NULL,
+  range_concept_schemes text[],
+  range_org_kinds text[],
+  path_weight numeric,
+  is_symmetric boolean NOT NULL DEFAULT false,
+  is_structural boolean NOT NULL DEFAULT false,
+  excluded_from_path_intermediates boolean NOT NULL DEFAULT false
+);
+TRUNCATE core.predicate_meta;
+INSERT INTO core.predicate_meta (predicate, label, inverse, inverse_label, storage,
+  domain_types, range_types, range_concept_schemes, range_org_kinds,
+  path_weight, is_symmetric, is_structural, excluded_from_path_intermediates)
+VALUES
+  ('acted_in', 'acted in', 'features_actor', 'features actor', 'core.credit', ARRAY['person']::text[], ARRAY['title','episode']::text[], NULL, NULL, 1.4, false, false, false),
+  ('aired_on', 'aired on', 'aired', 'aired', 'core.edge', ARRAY['title']::text[], ARRAY['organization']::text[], NULL, ARRAY['network']::text[], 3.5, false, false, false),
+  ('based_on', 'based on', 'adapted_as', 'adapted as', 'core.edge', ARRAY['title']::text[], ARRAY['work']::text[], NULL, NULL, 1.2, false, false, false),
+  ('belongs_to_genre', 'genre', 'genre_of', 'genre of', 'core.edge', ARRAY['title']::text[], ARRAY['concept']::text[], ARRAY['genre']::text[], NULL, 4.5, false, false, true),
+  ('broader_than', 'broader than', 'narrower_than', 'narrower than', 'core.edge', ARRAY['concept']::text[], ARRAY['concept']::text[], NULL, NULL, 2, false, false, false),
+  ('composed_for', 'composed the score for', 'scored_by', 'scored by', 'core.credit', ARRAY['person']::text[], ARRAY['title']::text[], NULL, NULL, 1.6, false, false, false),
+  ('directed', 'directed', 'directed_by', 'directed by', 'core.credit', ARRAY['person']::text[], ARRAY['title','episode']::text[], NULL, NULL, 1, false, false, false),
+  ('distributed_by', 'distributed by', 'distributed', 'distributed', 'core.edge', ARRAY['title']::text[], ARRAY['organization']::text[], NULL, ARRAY['distributor']::text[], 4.2, false, false, false),
+  ('episode_of', 'episode of', 'has_episode', 'has episode', 'structural', ARRAY['episode']::text[], ARRAY['season']::text[], NULL, NULL, NULL, false, true, false),
+  ('explores_theme', 'explores', 'explored_by', 'explored by', 'core.edge', ARRAY['title']::text[], ARRAY['concept']::text[], ARRAY['theme']::text[], NULL, 2.6, false, false, false),
+  ('features_character', 'features', 'appears_in', 'appears in', 'core.edge', ARRAY['title']::text[], ARRAY['character']::text[], NULL, NULL, 1.3, false, false, false),
+  ('influenced_by', 'influenced by', 'influenced', 'influenced', 'core.edge', ARRAY['title','person']::text[], ARRAY['title','person']::text[], NULL, NULL, 1.5, false, false, false),
+  ('part_of_franchise', 'part of', 'includes', 'includes', 'core.edge', ARRAY['title']::text[], ARRAY['collection']::text[], NULL, NULL, 1.1, false, false, false),
+  ('portrayed_by', 'portrayed by', 'portrays', 'portrays', 'core.edge', ARRAY['character']::text[], ARRAY['person']::text[], NULL, NULL, 1.1, false, false, false),
+  ('produced_by', 'produced by', 'produced', 'produced', 'core.edge', ARRAY['title']::text[], ARRAY['organization']::text[], NULL, ARRAY['studio','production']::text[], 3.8, false, false, false),
+  ('remake_of', 'remake of', 'remade_as', 'remade as', 'core.edge', ARRAY['title']::text[], ARRAY['title']::text[], NULL, NULL, 1.2, false, false, false),
+  ('season_of', 'season of', 'has_season', 'has season', 'structural', ARRAY['season']::text[], ARRAY['title']::text[], NULL, NULL, NULL, false, true, false),
+  ('sequel_to', 'sequel to', 'followed_by', 'followed by', 'core.edge', ARRAY['title']::text[], ARRAY['title']::text[], NULL, NULL, 1, false, false, false),
+  ('shot', 'was cinematographer on', 'shot_by', 'shot by', 'core.credit', ARRAY['person']::text[], ARRAY['title']::text[], NULL, NULL, 1.6, false, false, false),
+  ('similar_to', 'similar to', 'similar_to', 'similar to', 'core.edge_derived', ARRAY['title']::text[], ARRAY['title']::text[], NULL, NULL, 2.2, true, false, false),
+  ('wrote', 'wrote', 'written_by', 'written by', 'core.credit', ARRAY['person']::text[], ARRAY['title','episode']::text[], NULL, NULL, 1.15, false, false, false);
+
+-- Generic domain/range/subtype enforcement driven entirely by the table above.
+CREATE OR REPLACE FUNCTION core.assert_edge_valid() RETURNS trigger AS $$
+DECLARE m core.predicate_meta%ROWTYPE; obj_scheme text; obj_kind text;
+BEGIN
+  SELECT * INTO m FROM core.predicate_meta WHERE predicate = NEW.predicate;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'predicate % is not declared in ontology.yaml', NEW.predicate;
+  END IF;
+
+  IF m.storage <> TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME THEN
+    RAISE EXCEPTION 'predicate % is stored in %, not %.%',
+      NEW.predicate, m.storage, TG_TABLE_SCHEMA, TG_TABLE_NAME;
+  END IF;
+
+  IF NOT (NEW.subject_type = ANY (m.domain_types)) THEN
+    RAISE EXCEPTION 'ontology violation: % subject must be one of %, got %',
+      NEW.predicate, m.domain_types, NEW.subject_type;
+  END IF;
+  IF NOT (NEW.object_type = ANY (m.range_types)) THEN
+    RAISE EXCEPTION 'ontology violation: % object must be one of %, got %',
+      NEW.predicate, m.range_types, NEW.object_type;
+  END IF;
+
+  IF m.range_concept_schemes IS NOT NULL AND NEW.object_type = 'concept' THEN
+    SELECT scheme INTO obj_scheme FROM core.concept WHERE id = NEW.object_id;
+    IF obj_scheme IS NULL OR NOT (obj_scheme = ANY (m.range_concept_schemes)) THEN
+      RAISE EXCEPTION 'ontology violation: % requires a concept in scheme %, got %',
+        NEW.predicate, m.range_concept_schemes, coalesce(obj_scheme, '<missing>');
+    END IF;
+  END IF;
+
+  IF m.range_org_kinds IS NOT NULL AND NEW.object_type = 'organization' THEN
+    SELECT kind INTO obj_kind FROM core.organization WHERE id = NEW.object_id;
+    IF obj_kind IS NULL OR NOT (obj_kind = ANY (m.range_org_kinds)) THEN
+      RAISE EXCEPTION 'ontology violation: % requires an organization of kind %, got %',
+        NEW.predicate, m.range_org_kinds, coalesce(obj_kind, '<missing>');
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS core_edge_assert_valid ON core.edge;
 CREATE TRIGGER core_edge_assert_valid BEFORE INSERT OR UPDATE ON core.edge
   FOR EACH ROW EXECUTE FUNCTION core.assert_edge_valid();
