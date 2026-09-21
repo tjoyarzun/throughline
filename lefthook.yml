@@ -11,4 +11,4 @@ pre-commit:
 pre-push:
   commands:
     verify:
-      run: pnpm codegen && git diff --exit-code && pnpm typecheck && pnpm lint && pnpm test
+      run: pnpm verify

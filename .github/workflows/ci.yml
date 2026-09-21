@@ -23,7 +23,7 @@ jobs:
       # The ontology is the source of truth. If the committed artifacts differ
       # from what it produces, the database and the model have drifted.
       - name: Codegen drift
-        run: pnpm codegen && git diff --exit-code
+        run: pnpm check-drift
 
       - name: Typecheck
         run: pnpm typecheck

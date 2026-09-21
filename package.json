@@ -20,8 +20,9 @@
     "check-locale": "bash scripts/check-locale.sh",
     "check-spelling": "cspell --no-progress --no-summary \"**/*.{ts,tsx,md,yaml,yml,css}\"",
     "check-env": "tsx scripts/check-env.ts",
-    "verify": "pnpm codegen && git diff --exit-code && pnpm typecheck && pnpm lint && pnpm check-locale && pnpm check-spelling && pnpm check-layers && pnpm test",
-    "check-layers": "bash scripts/check-layers.sh"
+    "verify": "pnpm check-drift && pnpm typecheck && pnpm lint && pnpm check-locale && pnpm check-spelling && pnpm check-layers && pnpm test",
+    "check-layers": "bash scripts/check-layers.sh",
+    "check-drift": "pnpm codegen && git diff --exit-code -- src/lib/ontology/generated.ts drizzle/generated docs/ontology-reference.md"
   },
   "dependencies": {
     "next": "16.3.5",

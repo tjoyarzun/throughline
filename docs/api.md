@@ -38,6 +38,9 @@ the call site. Combined with RLS that is belt and braces — see [security.md](s
 
 All TMDB traffic goes through `src/server/providers/tmdb/`. Never from the browser.
 
+**Auth is the v4 Read Access Token as `Authorization: Bearer`, not the v3 `api_key` query
+parameter.** We log request paths, so a query-string credential would land in our logs.
+
 1. **`fetch` with the Next data cache** — `next: { revalidate, tags }` per endpoint class.
 2. **Token-bucket limiter** at 30 req/s, below TMDB's ~50 for headroom, with a Postgres-backed
    counter for cross-instance safety.

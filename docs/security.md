@@ -88,7 +88,7 @@ Postgres fallback counter if Redis is unavailable; fail-open on search, **fail-c
 
 | Secret                     | Rotation                                                             |
 | -------------------------- | -------------------------------------------------------------------- |
-| `TMDB_API_KEY`             | On suspicion only                                                    |
+| `TMDB_READ_ACCESS_TOKEN`   | On suspicion only                                                    |
 | `DATABASE_URL`             | 180 days, or immediately on exposure                                 |
 | `BETTER_AUTH_SECRET`       | 365 days (rotating invalidates all sessions — schedule deliberately) |
 | `CRON_SECRET`              | 180 days                                                             |
@@ -98,6 +98,11 @@ Postgres fallback counter if Redis is unavailable; fail-open on search, **fail-c
 No secret is committed. `.env.example` documents names only. CI greps for
 `NEXT_PUBLIC_.*(KEY|SECRET|TOKEN)`. The TMDB key never reaches the client because all TMDB traffic
 is proxied server-side.
+
+**TMDB auth uses the v4 Read Access Token as a Bearer header, never the v3 `api_key` query
+parameter.** The v3 key travels in the URL, and `src/server/providers/` logs request paths — a
+query-string credential would be written into our own logs and into any intermediary's. This is a
+one-line difference at the call site and removes an entire credential-leak class.
 
 ## Privacy
 
