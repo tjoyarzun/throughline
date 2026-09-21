@@ -14,6 +14,13 @@
  *     pending work and hydrate_title is idempotent.
  *
  * Usage: CRON_SECRET=... SITE=https://... tsx scripts/seed-production-queue.ts [--enqueue-only]
+ *
+ * Drains run CONCURRENTLY (default 4). core.claim_jobs uses FOR UPDATE SKIP
+ * LOCKED, so overlapping drains never claim the same job -- that is the whole
+ * point of SKIP LOCKED, and a serial loop leaves it unused. Each drain
+ * processes roughly one job per second, so even at 4x the TMDB call rate stays
+ * far below the 30 req/s limiter. Raise with DRAIN_CONCURRENCY at your own
+ * risk: the limiter is per Vercel instance, so N drains can mean N buckets.
  */
 import postgres from 'postgres';
 import { directDatabaseUrl } from '@/server/db/resolve-url';
@@ -26,6 +33,7 @@ if (!SECRET) {
 }
 const AUTH = { Authorization: `Bearer ${SECRET}`, 'content-type': 'application/json' };
 const ENQUEUE_ONLY = process.argv.includes('--enqueue-only');
+const CONCURRENCY = Math.max(1, Number(process.env.DRAIN_CONCURRENCY ?? 4));
 
 async function localTitles(): Promise<{ tmdbId: number; kind: string }[]> {
   const local = directDatabaseUrl();
@@ -74,24 +82,45 @@ async function main(): Promise<void> {
   }
   if (ENQUEUE_ONLY) return;
 
-  console.log('\ndraining. each call works for up to 45s.');
+  console.log(`\ndraining with ${CONCURRENCY} concurrent workers. each call works for up to 45s.`);
   const started = Date.now();
-  for (let pass = 1; ; pass++) {
+
+  /** One drain call. Returns null when the call itself failed. */
+  async function drainOnce(): Promise<{
+    processed: number;
+    failed: number;
+    remaining: number;
+  } | null> {
     const res = await fetch(`${SITE}/api/cron/drain`, { headers: AUTH });
     if (!res.ok) {
-      console.error(`  drain ${res.status}; retrying in 10s`);
+      console.error(`  drain ${res.status}: ${(await res.text()).slice(0, 120)}`);
+      return null;
+    }
+    return (await res.json()) as { processed: number; failed: number; remaining: number };
+  }
+
+  for (let pass = 1; ; pass++) {
+    const results = await Promise.all(Array.from({ length: CONCURRENCY }, () => drainOnce()));
+    const ok = results.filter((r): r is NonNullable<typeof r> => r !== null);
+
+    if (ok.length === 0) {
+      console.error('  every drain in this pass failed; retrying in 10s');
       await new Promise((r) => setTimeout(r, 10_000));
       continue;
     }
-    const d = (await res.json()) as { processed: number; failed: number; remaining: number };
+
+    const processed = ok.reduce((n, r) => n + r.processed, 0);
+    const failed = ok.reduce((n, r) => n + r.failed, 0);
+    // Each worker reports the depth it saw; the smallest is the most recent.
+    const remaining = Math.min(...ok.map((r) => r.remaining));
     const h = await health();
     const mins = ((Date.now() - started) / 60000).toFixed(1);
     console.log(
-      `  pass ${String(pass).padStart(3)} · +${d.processed} done, ${d.failed} failed · ` +
-        `remaining ${d.remaining} · corpus ${h.titles} titles · ${mins}m`,
+      `  pass ${String(pass).padStart(3)} · +${processed} done, ${failed} failed · ` +
+        `remaining ${remaining} · corpus ${h.titles} titles · ${mins}m`,
     );
-    if (d.remaining === 0) break;
-    if (d.processed === 0 && d.failed === 0) {
+    if (remaining === 0) break;
+    if (processed === 0 && failed === 0) {
       console.error('  no progress; stopping so this does not spin');
       break;
     }

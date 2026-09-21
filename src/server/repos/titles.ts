@@ -20,6 +20,8 @@ function db(): ReturnType<typeof postgres> {
 
 export interface TitleSummary {
   id: string;
+  /** Needed so provider results can be deduplicated against what we hold. */
+  tmdb_id: string | null;
   slug: string;
   kind: string;
   title: string;
@@ -66,10 +68,11 @@ export async function searchTitles(query: string, limit = 12): Promise<TitleSumm
   if (q.length < 2) return [];
   const normalized = normalizeTitle(q);
   return db()<TitleSummary[]>`
-    SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres
-    FROM sem.title
-    WHERE sort_title % ${normalized} OR title ILIKE ${'%' + q + '%'}
-    ORDER BY similarity(sort_title, ${normalized}) DESC, popularity DESC NULLS LAST
+    SELECT t.id, t.slug, t.kind, t.title, t.release_year, t.poster_path,
+           t.popularity::text, t.genres, t.tmdb_id
+    FROM sem.title t
+    WHERE t.sort_title % ${normalized} OR t.title ILIKE ${'%' + q + '%'}
+    ORDER BY similarity(t.sort_title, ${normalized}) DESC, t.popularity DESC NULLS LAST
     LIMIT ${limit}`;
 }
 
@@ -81,15 +84,14 @@ export async function getTitleBySlug(slug: string): Promise<TitleFull | null> {
 export async function getTitleByTmdbId(tmdbId: number, kind: string): Promise<TitleFull | null> {
   const rows = await db()<TitleFull[]>`
     SELECT f.* FROM sem.title_full f
-    JOIN core.external_id x ON x.entity_type = 'title' AND x.entity_id = f.id
-    WHERE x.source = 'tmdb' AND x.source_id = ${String(tmdbId)} AND f.kind = ${kind}`;
+    WHERE f.tmdb_id = ${String(tmdbId)} AND f.kind = ${kind}`;
   return rows[0] ?? null;
 }
 
 /** Trending, for the empty search state — something to show before typing. */
 export async function popularTitles(limit = 18): Promise<TitleSummary[]> {
   return db()<TitleSummary[]>`
-    SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres
+    SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres, NULL AS tmdb_id
     FROM sem.title
     WHERE poster_path IS NOT NULL
     ORDER BY popularity DESC NULLS LAST
@@ -128,7 +130,7 @@ export async function getFilmography(
     SELECT DISTINCT ON (c.predicate, t.id)
            c.predicate, c.character_name,
            t.id, t.slug, t.kind, t.title, t.release_year, t.poster_path,
-           t.popularity::text, t.genres
+           t.popularity::text, t.genres, NULL AS tmdb_id
     FROM sem.title_credit c
     JOIN sem.title t ON t.id = c.title_id
     WHERE c.person_id = ${personId}

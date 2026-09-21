@@ -24,6 +24,19 @@ export const PUBLIC_PREFIXES = [
 /** Authenticate themselves with a bearer secret; a cookie redirect breaks them. */
 export const SELF_AUTHENTICATING_PREFIXES = ['/api/cron/', '/api/admin/'] as const;
 
+/**
+ * API routes that are DELIBERATELY behind the session gate.
+ *
+ * Listed explicitly so "this route requires a session" is a decision on the
+ * record rather than a consequence of nobody having thought about it. A new
+ * /api/* route that is neither ungated nor listed here fails a unit test.
+ */
+export const SESSION_GATED_API_ROUTES = [
+  // Proxies TMDB. Open to the world it would be a free scraping endpoint for
+  // someone else's rate limit, and ours to answer for. See docs/security.md.
+  '/api/search',
+] as const;
+
 export const UNGATED_PREFIXES: readonly string[] = [
   ...PUBLIC_PREFIXES,
   ...SELF_AUTHENTICATING_PREFIXES,

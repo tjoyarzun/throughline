@@ -9,6 +9,7 @@
     "scripts/check-locale.sh",
     ".localeignore",
     "src/lib/ontology/generated.ts",
+    "src/lib/ontology/vocabulary.ts",
     "drizzle/generated/**",
     "docs/ontology-reference.md",
     "docs/adr/0013-en-us-locale-enforcement.md",

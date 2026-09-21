@@ -128,7 +128,13 @@ CREATE OR REPLACE VIEW sem.title AS
       ORDER BY p.popularity DESC NULLS LAST LIMIT 1) AS primary_director,
     (SELECT col.name FROM core.edge e JOIN core.collection col ON col.id = e.object_id
       WHERE e.subject_type = 'title' AND e.subject_id = t.id
-        AND e.predicate = 'part_of_franchise' LIMIT 1) AS franchise
+        AND e.predicate = 'part_of_franchise' LIMIT 1) AS franchise,
+    -- sort_title backs trigram search; tmdb_id lets the search repo dedup local
+    -- against provider hits without reaching into core.external_id itself.
+    t.sort_title,
+    (SELECT x.source_id FROM core.external_id x
+      WHERE x.entity_type = 'title' AND x.entity_id = t.id AND x.source = 'tmdb'
+      LIMIT 1) AS tmdb_id
   FROM core.title t;
 
 CREATE OR REPLACE VIEW sem.person AS

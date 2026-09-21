@@ -2,5 +2,6 @@
 node_modules
 pnpm-lock.yaml
 src/lib/ontology/generated.ts
+src/lib/ontology/vocabulary.ts
 drizzle/generated
 docs/ontology-reference.md

@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { runJob, type Job } from './handlers';
+import { HANDLERS, runJob, type Job } from './handlers';
 
 /**
  * Drains the job queue. All SQL lives here rather than in the route handler —
@@ -106,6 +106,33 @@ export async function runMaintenanceJob(
  * enqueue_job dedupes on (kind, payload) while a job is still pending, so
  * resending a batch after a timeout costs nothing.
  */
+/**
+ * Enqueue a single maintenance job by kind.
+ *
+ * The kind must be a registered handler. That allowlist is the whole security
+ * story for this path: an unrecognized kind can never be written, so a
+ * compromised caller cannot park junk in the queue for a future handler name
+ * to pick up.
+ */
+export async function enqueueJobKind(
+  databaseUrl: string,
+  kind: string,
+  payload: Record<string, unknown> = {},
+): Promise<{ kind: string; queue_depth: number }> {
+  if (!Object.prototype.hasOwnProperty.call(HANDLERS, kind)) {
+    throw new Error(`unknown job kind '${kind}'`);
+  }
+  const sql = postgres(databaseUrl, { max: 2, prepare: false, onnotice: () => {} });
+  try {
+    await sql`SELECT core.enqueue_job(${kind}, ${sql.json(payload as never)})`;
+    const [depth] = await sql<{ queued: number }[]>`
+      SELECT count(*)::int AS queued FROM core.job WHERE status = 'queued'`;
+    return { kind, queue_depth: depth?.queued ?? 0 };
+  } finally {
+    await sql.end();
+  }
+}
+
 export async function enqueueTitles(
   databaseUrl: string,
   titles: { tmdbId: number; kind: string }[],

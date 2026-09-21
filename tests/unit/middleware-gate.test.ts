@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { isUngated, SELF_AUTHENTICATING_PREFIXES } from '@/lib/route-access';
+import {
+  isUngated,
+  SELF_AUTHENTICATING_PREFIXES,
+  SESSION_GATED_API_ROUTES,
+} from '@/lib/route-access';
 
 /**
  * The session gate must not stand in front of routes that authenticate
@@ -51,11 +55,19 @@ describe('middleware session gate', () => {
     }
   });
 
+  it('every deliberately gated route is in fact gated', () => {
+    for (const route of SESSION_GATED_API_ROUTES) {
+      expect(covered(route), `${route} is listed as gated but is ungated`).toBe(false);
+    }
+  });
+
   it('a new API route under a gated path is caught', () => {
     // Guards the future: an /api/something route that is neither cron nor
     // admin and is not listed will be session-gated, which may be correct —
     // this just makes the set explicit rather than accidental.
-    const unlisted = apiRoutes().filter((r) => !covered(r));
+    const unlisted = apiRoutes().filter(
+      (r) => !covered(r) && !(SESSION_GATED_API_ROUTES as readonly string[]).includes(r),
+    );
     expect(unlisted, 'unexpected ungated-by-omission API routes').toEqual([]);
   });
 });

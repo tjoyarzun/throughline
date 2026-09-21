@@ -20,3 +20,8 @@
 # would break the join to core.title_keyword. Quoted provider vocabulary is
 # exactly the exception ADR 0013 describes.
 ^ontology/crosswalk\.yaml:
+
+# src/lib/ontology/vocabulary.ts is GENERATED from crosswalk.yaml and therefore
+# carries the identical verbatim TMDB keyword strings. Same exception, same
+# reason; exempting it separately keeps the rule visible rather than implied.
+^src/lib/ontology/vocabulary\.ts:

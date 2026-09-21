@@ -13,10 +13,20 @@ const declared = new Set(
     .map((l) => l.split('=')[0]!.trim()),
 );
 
-// Only compare against vars we actually own; the shell is full of unrelated ones.
-const OWNED_PREFIXES = ['DATABASE_', 'BETTER_AUTH_', 'TMDB_', 'CRON_', 'UPSTASH_', 'NEXT_PUBLIC_'];
+// Only compare against vars we actually own; the shell is full of unrelated
+// ones. The namespaces are DERIVED from .env.example rather than hardcoded: a
+// hand-maintained prefix list drifts from the file, and any declared var
+// outside it then reports as "missing" forever even when it is set. That is
+// how this check came to report AUTH_DATABASE_URL, RESEND_API_KEY and
+// EMAIL_FROM as missing while all three were populated. NEXT_ is the one
+// exception -- the framework owns that namespace, and only NEXT_PUBLIC_ is ours.
+const namespaces = [
+  ...new Set(
+    [...declared].map((k) => (k.startsWith('NEXT_') ? 'NEXT_PUBLIC_' : `${k.split('_')[0]}_`)),
+  ),
+];
 const present = new Set(
-  Object.keys(process.env).filter((k) => OWNED_PREFIXES.some((p) => k.startsWith(p))),
+  Object.keys(process.env).filter((k) => namespaces.some((p) => k.startsWith(p))),
 );
 
 const missing = [...declared].filter((k) => !present.has(k));

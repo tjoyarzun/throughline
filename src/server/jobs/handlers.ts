@@ -1,4 +1,5 @@
 import type { Sql } from '../ingest/resolve';
+import { deriveThemes } from '../ingest/derive-themes';
 import { Ingestor } from '../ingest/ingest';
 import { TmdbClient } from '../providers/tmdb/client';
 
@@ -33,6 +34,20 @@ export const HANDLERS: Record<string, Handler> = {
     const ing = new Ingestor(sql, new TmdbClient(undefined, captureRaw(sql)));
     if (kind === 'show') await ing.ingestShow(tmdbId);
     else await ing.ingestMovie(tmdbId);
+  },
+
+  /**
+   * Rebuild the curated theme layer from the crosswalk. Runs as a job because
+   * the vocabulary has to be applied where the database is, and production's
+   * connection string is deliberately unreachable from a laptop.
+   *
+   * Idempotent and safe to re-run: it rebuilds crosswalk rows wholesale and
+   * replaces its own edges (source = 'crosswalk'), touching nothing asserted.
+   * Enqueue it after a bulk ingest, since newly hydrated titles arrive with
+   * keywords but no themes.
+   */
+  derive_themes: async (sql) => {
+    await deriveThemes(sql);
   },
 
   /** Nightly. Node degree drives the hub penalty in path ranking. */

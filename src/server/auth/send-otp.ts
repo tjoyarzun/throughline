@@ -14,14 +14,21 @@ export async function sendOtpEmail(email: string, otp: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
-  if (!apiKey || !from) {
+  // In development the code goes to the log, NOT to Resend, even when a key is
+  // present. Resend's unverified-domain mode only delivers to the account
+  // owner's own address, so a dev sign-in as anyone else fails with a 403 that
+  // looks like an auth bug. Set EMAIL_DEV_DELIVER=1 to exercise the real
+  // delivery path locally.
+  const devLogOnly = process.env.NODE_ENV !== 'production' && process.env.EMAIL_DEV_DELIVER !== '1';
+
+  if (!apiKey || !from || devLogOnly) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(
         'sendOtpEmail: RESEND_API_KEY and EMAIL_FROM are required in production. ' +
           'Without them the code is generated but never delivered, and sign-in silently fails.',
       );
     }
-    // Development: the code goes to the server log, which is where you are.
+    // The code goes to the server log, which is where you are.
     console.info(`\n  [auth] sign-in code for ${email}: ${otp}\n`);
     return;
   }

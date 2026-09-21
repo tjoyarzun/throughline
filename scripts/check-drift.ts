@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 
 const ARTIFACTS = [
   'src/lib/ontology/generated.ts',
+  'src/lib/ontology/vocabulary.ts',
   'drizzle/generated/ontology.sql',
   'docs/ontology-reference.md',
 ];
@@ -35,4 +36,4 @@ if (stale.length > 0) {
   console.error('If you hand-edited one: do not. Edit ontology/ontology.yaml.');
   process.exit(1);
 }
-console.log(`check-drift: OK — ${ARTIFACTS.length} artifacts match ontology.yaml`);
+console.log(`check-drift: OK — ${ARTIFACTS.length} artifacts match the ontology sources`);
