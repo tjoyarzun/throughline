@@ -10,6 +10,8 @@ Not yet done — Phase 0 is verified locally. Steps:
 2. **Vercel** — import the repo, framework preset Next.js. Add the Neon integration so connection
    strings are injected.
 3. **Env vars** — set everything in `.env.example` in the Vercel dashboard, Production and Preview.
+   **Do not create `DATABASE_URL` by hand** — the Neon integration creates it and refuses to connect
+   if the name is already taken. Let Neon own it.
 4. **Upstash** — create a Redis database (free tier), add the two vars.
 5. **Sentry** — create the project, add the DSN.
 6. `pnpm check-env` locally to confirm parity.

@@ -114,3 +114,6 @@ glassmorphic
 affordances
 plpgsql
 sparkline
+pgbouncer
+unpooled
+UNPOOLED

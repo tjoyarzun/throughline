@@ -55,6 +55,13 @@ Therefore:
 
 This will cost a day if rediscovered. It is in `CLAUDE.md` as a hard rule for that reason.
 
+**Second, independent reason `withUser()` must own every path: connection pooling.** `DATABASE_URL`
+is a pgbouncer pooled connection in transaction mode, so a backend connection is handed to a
+different request the moment a transaction ends. `SET LOCAL` is transaction-scoped and therefore
+safe. A plain `SET app.account_id` would persist on that backend and be inherited by **the next
+request that borrows it** — a cross-tenant data leak that would pass every test written against a
+single user. Never use plain `SET` for the account id.
+
 ## Database roles
 
 | Role          | Grants                                                                                        |
