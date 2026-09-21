@@ -18,12 +18,17 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres from 'postgres';
+import { directDatabaseUrl, describeUrl } from '@/server/db/resolve-url';
 
-const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
-if (!url) {
-  console.error('db-migrate: DATABASE_URL_UNPOOLED or DATABASE_URL must be set');
+const resolved = directDatabaseUrl();
+if (!resolved) {
+  console.error(
+    'db-migrate: no database URL found. Set one of DATABASE_URL_UNPOOLED, ' +
+      'POSTGRES_URL_NON_POOLING, or DATABASE_URL.',
+  );
   process.exit(2);
 }
+const { url, name: urlVarName } = resolved;
 
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 
@@ -35,7 +40,7 @@ async function runFile(path: string, label: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('db-migrate: applying to', url!.replace(/:[^:@]+@/, ':***@'));
+  console.log(`db-migrate: applying to ${describeUrl(url)} (via ${urlVarName})`);
 
   console.log('1. bootstrap');
   await runFile('drizzle/sql/00-bootstrap.sql', '00-bootstrap.sql');
