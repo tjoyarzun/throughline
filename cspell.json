@@ -11,7 +11,10 @@
     "src/lib/ontology/generated.ts",
     "drizzle/generated/**",
     "docs/ontology-reference.md",
-    "docs/adr/0013-en-us-locale-enforcement.md"
+    "docs/adr/0013-en-us-locale-enforcement.md",
+    "tests/unit/normalize.test.ts",
+    "tests/integration/normalize-parity.test.ts",
+    "ontology/crosswalk.yaml"
   ],
   "dictionaryDefinitions": [
     {

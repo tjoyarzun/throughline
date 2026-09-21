@@ -95,11 +95,6 @@ concept_schemes:
       Promoted out of Phase 2 on evidence: a keyword census over 448 titles found
       319 sentiment-tag assignments, more mass than any theme gap. Without this
       scheme the crosswalk drops them and "less depressing" has nothing to filter on.
-  keyword:
-    curated: false
-    source: tmdb.keywords
-    hierarchical: false
-    note: Raw folksonomy. Never surfaced in UI; exists only to feed the theme crosswalk.
   format:
     curated: true
     source: manual

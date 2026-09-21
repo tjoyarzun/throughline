@@ -84,8 +84,14 @@ async function main(): Promise<void> {
   console.log('3. ontology constraints (generated)');
   await runFile('drizzle/generated/ontology.sql', 'ontology.sql');
 
-  console.log('4-7. views, matviews, rls, roles');
-  for (const f of ['20-views.sql', '50-matviews.sql', '30-rls.sql', '40-roles.sql']) {
+  console.log('4-7. functions, views, matviews, rls, roles');
+  for (const f of [
+    '10-functions.sql',
+    '20-views.sql',
+    '50-matviews.sql',
+    '30-rls.sql',
+    '40-roles.sql',
+  ]) {
     await runFile(join('drizzle/sql', f), f);
   }
 

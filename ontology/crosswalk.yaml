@@ -1,0 +1,600 @@
+# Keyword -> theme crosswalk.
+#
+# TMDB keywords are a folksonomy of ~8,000 user-contributed terms. This file is
+# the curated mapping from that folksonomy onto ontology/themes.yaml.
+#
+# THE MOST IMPORTANT PROPERTY OF THIS FILE IS WHAT IT OMITS. A keyword census
+# over 448 titles found the four largest categories are sentiment, provenance,
+# format and setting — none of which are themes. `new york city` is a setting.
+# `sequel` is an edge. `anime` is a format. `hilarious` is a mood. They map to
+# nothing here, and that is correct, not incomplete.
+#
+# salience: how strongly the keyword implies the theme. Multiple keywords on one
+# title accumulate; the derivation keeps themes above threshold, capped at 6.
+#
+# decided_by: llm_draft until a human confirms. Rows still marked llm_draft are
+# visible in the admin view and reviewed opportunistically. See docs/ontology.md.
+
+version: 1
+default_decided_by: llm_draft
+
+# Keywords deliberately mapped to nothing, recorded so the coverage metric can
+# distinguish "considered and excluded" from "never looked at".
+excluded:
+  setting:
+    [
+      new york city,
+      los angeles,
+      japan,
+      paris,
+      london,
+      small town,
+      hospital,
+      high school,
+      school,
+      school life,
+      japanese high school,
+      island,
+      desert,
+      space station,
+      suburb,
+      village,
+      castle,
+      forest,
+    ]
+  format:
+    [
+      anime,
+      3d animation,
+      adult animation,
+      cartoon,
+      black and white,
+      musical,
+      sitcom,
+      miniseries,
+      variety show,
+      talk show,
+      late-night show,
+      romcom,
+      period drama,
+      police procedural,
+      live action and animation,
+      silent film,
+      found footage,
+      mockumentary,
+      stop motion,
+    ]
+  provenance:
+    [
+      based on novel or book,
+      based on manga,
+      based on comic,
+      based on true story,
+      based on tv series,
+      based on web novel,
+      based on video game,
+      based on play,
+      sequel,
+      prequel,
+      remake,
+      spin off,
+      reboot,
+      marvel cinematic universe (mcu),
+      based on young adult novel,
+      based on short story,
+    ]
+  mood:
+    [
+      excited,
+      hilarious,
+      dramatic,
+      amused,
+      admiring,
+      cheerful,
+      comforting,
+      aggressive,
+      awestruck,
+      adoring,
+      enthusiastic,
+      loving,
+      bold,
+      lighthearted,
+      audacious,
+      anxious,
+      suspenseful,
+      absurd,
+      exhilarated,
+      hopeful,
+      distressing,
+      nostalgic,
+      empathetic,
+      inspirational,
+      wistful,
+      introspective,
+      tense,
+      depressing,
+      compassionate,
+      sympathetic,
+      intense,
+      joyful,
+      reflective,
+      cruel,
+      mysterious,
+      romantic,
+      complex,
+      complicated,
+      informative,
+      philosophical,
+      psychological,
+      wonder,
+    ]
+  noise:
+    [
+      aftercreditsstinger,
+      duringcreditsstinger,
+      affectation,
+      woman director,
+      female protagonist,
+      male friendship,
+      1930s,
+      1940s,
+      1950s,
+      1960s,
+      1970s,
+      1980s,
+      1990s,
+      historical,
+      19th century,
+      kids,
+      daughter,
+      fight,
+      adventure,
+      money,
+    ]
+  # Modes and registers, not subjects. A film IS tragic; it is not ABOUT tragedy.
+  mode:
+    [
+      tragedy,
+      tragic,
+      satire,
+      surrealism,
+      melodramatic,
+      dark comedy,
+      whimsy,
+      psychological thriller,
+      psychological drama,
+      film noir,
+      neo-noir,
+      horror,
+      thriller,
+      comedy,
+      drama,
+      biography,
+      historical fiction,
+      short film,
+      jidaigeki,
+      shounen,
+      slice of life,
+      road movie,
+      whodunit,
+      anthology,
+    ]
+  # Studios and franchises are edges (produced_by, part_of_franchise), not themes.
+  organization: [pixar, disney, dreamworks, studio ghibli, blumhouse, a24]
+  # Too generic to discriminate. "love" appears on 47 titles and tells us nothing
+  # a more specific keyword on the same title does not tell us better.
+  too_generic: [love, family, romance, life, friendship story, human nature]
+
+mappings:
+  # --- The Supernatural -------------------------------------------------------
+  magic: [{ theme: magic_and_enchantment, salience: 1.0 }]
+  witch:
+    [
+      { theme: magic_and_enchantment, salience: 0.9 },
+      { theme: curses_and_the_occult, salience: 0.5 },
+    ]
+  wizard: [{ theme: magic_and_enchantment, salience: 0.9 }]
+  sorcery: [{ theme: magic_and_enchantment, salience: 1.0 }]
+  sword and sorcery:
+    [{ theme: magic_and_enchantment, salience: 0.8 }, { theme: other_worlds, salience: 0.5 }]
+  supernatural:
+    [{ theme: magic_and_enchantment, salience: 0.6 }, { theme: hauntings, salience: 0.4 }]
+  demon:
+    [
+      { theme: monsters_and_the_monstrous, salience: 0.8 },
+      { theme: curses_and_the_occult, salience: 0.6 },
+    ]
+  monster: [{ theme: monsters_and_the_monstrous, salience: 1.0 }]
+  vampire: [{ theme: monsters_and_the_monstrous, salience: 0.9 }]
+  werewolf:
+    [
+      { theme: monsters_and_the_monstrous, salience: 0.9 },
+      { theme: body_and_transformation, salience: 0.5 },
+    ]
+  zombie:
+    [{ theme: monsters_and_the_monstrous, salience: 0.8 }, { theme: apocalypse, salience: 0.6 }]
+  kaiju: [{ theme: monsters_and_the_monstrous, salience: 1.0 }]
+  youkai:
+    [
+      { theme: monsters_and_the_monstrous, salience: 0.7 },
+      { theme: magic_and_enchantment, salience: 0.5 },
+    ]
+  ghost: [{ theme: hauntings, salience: 1.0 }]
+  haunted house: [{ theme: hauntings, salience: 1.0 }]
+  spirit: [{ theme: hauntings, salience: 0.6 }, { theme: transcendence, salience: 0.4 }]
+  exorcism:
+    [{ theme: curses_and_the_occult, salience: 1.0 }, { theme: religion_and_doubt, salience: 0.6 }]
+  curse: [{ theme: curses_and_the_occult, salience: 1.0 }]
+  occult: [{ theme: curses_and_the_occult, salience: 1.0 }]
+  deal with the devil:
+    [{ theme: curses_and_the_occult, salience: 0.9 }, { theme: greed, salience: 0.4 }]
+  fantasy world: [{ theme: other_worlds, salience: 1.0 }]
+  parallel world: [{ theme: other_worlds, salience: 0.8 }, { theme: parallel_lives, salience: 0.7 }]
+  parallel universe:
+    [{ theme: other_worlds, salience: 0.8 }, { theme: parallel_lives, salience: 0.7 }]
+  isekai: [{ theme: other_worlds, salience: 1.0 }]
+  portal: [{ theme: other_worlds, salience: 0.7 }]
+  dark fantasy:
+    [{ theme: other_worlds, salience: 0.6 }, { theme: monsters_and_the_monstrous, salience: 0.5 }]
+  urban fantasy:
+    [{ theme: magic_and_enchantment, salience: 0.7 }, { theme: other_worlds, salience: 0.4 }]
+
+  # --- Heroism & Power --------------------------------------------------------
+  superhero: [{ theme: extraordinary_power, salience: 1.0 }, { theme: heroism, salience: 0.7 }]
+  super power: [{ theme: extraordinary_power, salience: 1.0 }]
+  superpowers: [{ theme: extraordinary_power, salience: 1.0 }]
+  masked superhero:
+    [{ theme: secret_identity, salience: 0.9 }, { theme: extraordinary_power, salience: 0.7 }]
+  secret identity: [{ theme: secret_identity, salience: 1.0 }]
+  dual identity: [{ theme: secret_identity, salience: 0.9 }, { theme: duality, salience: 0.7 }]
+  superhero team:
+    [{ theme: extraordinary_power, salience: 0.8 }, { theme: belonging, salience: 0.4 }]
+  teen superhero:
+    [{ theme: extraordinary_power, salience: 0.8 }, { theme: loss_of_innocence, salience: 0.4 }]
+  supervillain:
+    [{ theme: good_versus_evil, salience: 0.8 }, { theme: extraordinary_power, salience: 0.6 }]
+  villain: [{ theme: good_versus_evil, salience: 0.6 }]
+  anti hero: [{ theme: moral_ambiguity, salience: 0.9 }, { theme: heroism, salience: 0.4 }]
+  hero: [{ theme: heroism, salience: 0.8 }]
+  bravery: [{ theme: heroism, salience: 0.9 }]
+  good versus evil: [{ theme: good_versus_evil, salience: 1.0 }]
+  vigilante:
+    [{ theme: vigilantism, salience: 1.0 }, { theme: the_law_versus_justice, salience: 0.6 }]
+  chosen one:
+    [{ theme: fate_and_determinism, salience: 0.8 }, { theme: purpose_and_vocation, salience: 0.5 }]
+
+  # --- Competition & Mastery --------------------------------------------------
+  rivalry: [{ theme: rivalry, salience: 1.0 }]
+  competition: [{ theme: winning_and_losing, salience: 0.8 }, { theme: rivalry, salience: 0.5 }]
+  tournament: [{ theme: winning_and_losing, salience: 0.9 }, { theme: rivalry, salience: 0.6 }]
+  training: [{ theme: training_and_discipline, salience: 1.0 }]
+  martial arts:
+    [{ theme: training_and_discipline, salience: 0.7 }, { theme: craft_and_mastery, salience: 0.5 }]
+  sports:
+    [
+      { theme: winning_and_losing, salience: 0.8 },
+      { theme: training_and_discipline, salience: 0.5 },
+    ]
+  boxing:
+    [
+      { theme: training_and_discipline, salience: 0.7 },
+      { theme: winning_and_losing, salience: 0.7 },
+    ]
+  underdog: [{ theme: winning_and_losing, salience: 0.9 }]
+  perfectionism:
+    [{ theme: craft_and_mastery, salience: 0.9 }, { theme: artistic_obsession, salience: 0.6 }]
+  prodigy: [{ theme: craft_and_mastery, salience: 0.8 }]
+  chess: [{ theme: craft_and_mastery, salience: 0.7 }, { theme: rivalry, salience: 0.5 }]
+
+  # --- Identity & Self --------------------------------------------------------
+  lgbt: [{ theme: sexual_identity, salience: 1.0 }]
+  gay theme: [{ theme: sexual_identity, salience: 1.0 }]
+  gay: [{ theme: sexual_identity, salience: 0.9 }]
+  lesbian: [{ theme: sexual_identity, salience: 0.9 }]
+  transgender:
+    [{ theme: gender_and_expectation, salience: 1.0 }, { theme: sexual_identity, salience: 0.5 }]
+  "boys' love (bl)":
+    [{ theme: sexual_identity, salience: 0.9 }, { theme: forbidden_love, salience: 0.4 }]
+  coming out: [{ theme: sexual_identity, salience: 1.0 }, { theme: self_invention, salience: 0.4 }]
+  feminism: [{ theme: gender_and_expectation, salience: 1.0 }]
+  depression: [{ theme: mental_illness, salience: 1.0 }]
+  mental illness: [{ theme: mental_illness, salience: 1.0 }]
+  mental health: [{ theme: mental_illness, salience: 0.9 }]
+  schizophrenia: [{ theme: mental_illness, salience: 1.0 }]
+  split personality: [{ theme: mental_illness, salience: 0.8 }, { theme: duality, salience: 0.8 }]
+  psychopath: [{ theme: mental_illness, salience: 0.6 }, { theme: moral_ambiguity, salience: 0.5 }]
+  suicide: [{ theme: mental_illness, salience: 0.7 }, { theme: mortality, salience: 0.6 }]
+  addiction: [{ theme: addiction, salience: 1.0 }]
+  drug addiction: [{ theme: addiction, salience: 1.0 }]
+  alcoholism: [{ theme: addiction, salience: 1.0 }]
+  drugs: [{ theme: addiction, salience: 0.6 }]
+  identity crisis: [{ theme: self_invention, salience: 0.8 }, { theme: alienation, salience: 0.5 }]
+  amnesia: [{ theme: memory, salience: 1.0 }, { theme: self_invention, salience: 0.5 }]
+  doppelganger: [{ theme: duality, salience: 1.0 }]
+  impostor: [{ theme: impostor_identity, salience: 1.0 }]
+  con artist: [{ theme: impostor_identity, salience: 0.8 }]
+  undercover:
+    [{ theme: impostor_identity, salience: 0.8 }, { theme: secret_identity, salience: 0.6 }]
+  loneliness: [{ theme: loneliness, salience: 1.0 }]
+  isolation: [{ theme: loneliness, salience: 0.7 }, { theme: isolation_survival, salience: 0.5 }]
+  outsider: [{ theme: alienation, salience: 0.9 }]
+  body horror:
+    [
+      { theme: body_and_transformation, salience: 1.0 },
+      { theme: monsters_and_the_monstrous, salience: 0.4 },
+    ]
+  transformation: [{ theme: body_and_transformation, salience: 0.8 }]
+
+  # --- Power & Politics -------------------------------------------------------
+  dystopia: [{ theme: dystopia, salience: 1.0 }]
+  totalitarianism: [{ theme: authoritarianism, salience: 1.0 }, { theme: dystopia, salience: 0.6 }]
+  dictator: [{ theme: authoritarianism, salience: 0.9 }]
+  fascism: [{ theme: authoritarianism, salience: 1.0 }]
+  nazi: [{ theme: authoritarianism, salience: 0.8 }, { theme: genocide, salience: 0.6 }]
+  surveillance: [{ theme: surveillance, salience: 1.0 }]
+  propaganda: [{ theme: propaganda, salience: 1.0 }]
+  corruption: [{ theme: corruption, salience: 1.0 }]
+  political corruption: [{ theme: corruption, salience: 1.0 }]
+  bureaucracy: [{ theme: bureaucracy, salience: 1.0 }]
+  revolution: [{ theme: resistance, salience: 0.9 }]
+  rebellion: [{ theme: resistance, salience: 0.8 }, { theme: rebellion, salience: 0.7 }]
+  resistance: [{ theme: resistance, salience: 1.0 }]
+  colonialism: [{ theme: colonialism, salience: 1.0 }]
+  slavery:
+    [
+      { theme: prejudice_and_otherness, salience: 0.8 },
+      { theme: labor_and_exploitation, salience: 0.7 },
+    ]
+  racism: [{ theme: prejudice_and_otherness, salience: 1.0 }]
+  discrimination: [{ theme: prejudice_and_otherness, salience: 1.0 }]
+  civil rights:
+    [{ theme: prejudice_and_otherness, salience: 0.8 }, { theme: resistance, salience: 0.6 }]
+  apartheid:
+    [{ theme: prejudice_and_otherness, salience: 1.0 }, { theme: authoritarianism, salience: 0.5 }]
+  immigration: [{ theme: migration_and_exile, salience: 1.0 }]
+  immigrant: [{ theme: migration_and_exile, salience: 1.0 }]
+  refugee: [{ theme: migration_and_exile, salience: 1.0 }]
+  exile: [{ theme: migration_and_exile, salience: 0.9 }]
+  politics: [{ theme: leadership_and_its_cost, salience: 0.5 }]
+
+  # --- Technology & Humanity --------------------------------------------------
+  artificial intelligence (a.i.): [{ theme: artificial_intelligence, salience: 1.0 }]
+  artificial intelligence: [{ theme: artificial_intelligence, salience: 1.0 }]
+  robot:
+    [
+      { theme: artificial_intelligence, salience: 0.7 },
+      { theme: artificial_personhood, salience: 0.6 },
+    ]
+  android:
+    [
+      { theme: artificial_personhood, salience: 1.0 },
+      { theme: artificial_intelligence, salience: 0.6 },
+    ]
+  cyborg:
+    [{ theme: transhumanism, salience: 0.9 }, { theme: body_and_transformation, salience: 0.5 }]
+  cyberpunk: [{ theme: dystopia, salience: 0.7 }, { theme: transhumanism, salience: 0.6 }]
+  virtual reality: [{ theme: simulation_and_reality, salience: 1.0 }]
+  simulation: [{ theme: simulation_and_reality, salience: 1.0 }]
+  genetic engineering: [{ theme: genetic_engineering, salience: 1.0 }]
+  cloning:
+    [{ theme: genetic_engineering, salience: 0.9 }, { theme: artificial_personhood, salience: 0.5 }]
+  mad scientist: [{ theme: technological_hubris, salience: 0.9 }]
+  scientist: [{ theme: craft_and_mastery, salience: 0.4 }]
+  space travel: [{ theme: space_exploration, salience: 1.0 }]
+  space: [{ theme: space_exploration, salience: 0.8 }]
+  astronaut: [{ theme: space_exploration, salience: 0.9 }]
+  alien: [{ theme: space_exploration, salience: 0.5 }, { theme: alienation, salience: 0.3 }]
+  first contact:
+    [{ theme: space_exploration, salience: 0.7 }, { theme: information_and_truth, salience: 0.4 }]
+  automation: [{ theme: automation_and_labor, salience: 1.0 }]
+  hacker: [{ theme: information_and_truth, salience: 0.7 }, { theme: surveillance, salience: 0.4 }]
+  conspiracy:
+    [{ theme: information_and_truth, salience: 0.8 }, { theme: corruption, salience: 0.5 }]
+  journalism: [{ theme: information_and_truth, salience: 0.9 }]
+
+  # --- Memory & Time ----------------------------------------------------------
+  time travel: [{ theme: time_travel, salience: 1.0 }]
+  time loop: [{ theme: time_travel, salience: 0.8 }, { theme: nonlinear_time, salience: 0.7 }]
+  nonlinear timeline: [{ theme: nonlinear_time, salience: 1.0 }]
+  flashback: [{ theme: memory, salience: 0.6 }, { theme: nonlinear_time, salience: 0.5 }]
+  memory: [{ theme: memory, salience: 1.0 }]
+  memory loss: [{ theme: memory, salience: 1.0 }]
+  dreams: [{ theme: memory, salience: 0.4 }, { theme: simulation_and_reality, salience: 0.4 }]
+  grief: [{ theme: grief, salience: 1.0 }]
+  loss of loved one: [{ theme: grief, salience: 1.0 }]
+  mourning: [{ theme: grief, salience: 1.0 }]
+  nostalgia: [{ theme: nostalgia, salience: 1.0 }]
+  regret: [{ theme: regret, salience: 1.0 }]
+  fate: [{ theme: fate_and_determinism, salience: 1.0 }]
+  destiny: [{ theme: fate_and_determinism, salience: 0.9 }]
+  prophecy: [{ theme: fate_and_determinism, salience: 0.8 }]
+  legacy: [{ theme: legacy, salience: 1.0 }]
+  old age: [{ theme: aging, salience: 1.0 }]
+  aging: [{ theme: aging, salience: 1.0 }]
+
+  # --- Crime & Justice --------------------------------------------------------
+  revenge: [{ theme: revenge, salience: 1.0 }]
+  vengeance: [{ theme: revenge, salience: 1.0 }]
+  guilt: [{ theme: guilt, salience: 1.0 }]
+  murder: [{ theme: investigation, salience: 0.4 }, { theme: guilt, salience: 0.3 }]
+  murder investigation: [{ theme: investigation, salience: 1.0 }]
+  criminal investigation: [{ theme: investigation, salience: 1.0 }]
+  crime investigation: [{ theme: investigation, salience: 1.0 }]
+  detective: [{ theme: investigation, salience: 0.9 }]
+  serial killer:
+    [{ theme: investigation, salience: 0.6 }, { theme: cycle_of_violence, salience: 0.4 }]
+  organized crime: [{ theme: organized_crime, salience: 1.0 }]
+  mafia: [{ theme: organized_crime, salience: 1.0 }]
+  gangster: [{ theme: organized_crime, salience: 0.9 }]
+  heist: [{ theme: resourcefulness, salience: 0.7 }, { theme: greed, salience: 0.4 }]
+  wrongful conviction:
+    [
+      { theme: wrongful_accusation, salience: 1.0 },
+      { theme: the_law_versus_justice, salience: 0.7 },
+    ]
+  false accusation: [{ theme: wrongful_accusation, salience: 1.0 }]
+  courtroom: [{ theme: the_law_versus_justice, salience: 0.9 }]
+  lawyer: [{ theme: the_law_versus_justice, salience: 0.7 }]
+  trial: [{ theme: the_law_versus_justice, salience: 0.8 }]
+  prison: [{ theme: captivity, salience: 0.8 }, { theme: punishment_and_mercy, salience: 0.6 }]
+  jail: [{ theme: captivity, salience: 0.8 }, { theme: punishment_and_mercy, salience: 0.6 }]
+  betrayal: [{ theme: moral_ambiguity, salience: 0.5 }, { theme: infidelity, salience: 0.3 }]
+  manipulation: [{ theme: moral_ambiguity, salience: 0.6 }]
+
+  # --- Love & Desire ----------------------------------------------------------
+  unrequited love: [{ theme: unrequited_love, salience: 1.0 }]
+  love triangle: [{ theme: unrequited_love, salience: 0.6 }, { theme: obsession, salience: 0.4 }]
+  marriage: [{ theme: marriage, salience: 1.0 }]
+  divorce: [{ theme: marriage, salience: 0.8 }, { theme: estrangement, salience: 0.6 }]
+  wedding: [{ theme: marriage, salience: 0.7 }]
+  adultery: [{ theme: infidelity, salience: 1.0 }]
+  infidelity: [{ theme: infidelity, salience: 1.0 }]
+  affair: [{ theme: infidelity, salience: 0.9 }]
+  obsession: [{ theme: obsession, salience: 1.0 }]
+  stalker: [{ theme: obsession, salience: 0.9 }]
+  friendship: [{ theme: friendship, salience: 1.0 }]
+  bromance: [{ theme: friendship, salience: 0.9 }]
+  forbidden love: [{ theme: forbidden_love, salience: 1.0 }]
+  widow: [{ theme: loss_of_a_partner, salience: 1.0 }, { theme: grief, salience: 0.7 }]
+  first love: [{ theme: first_love, salience: 1.0 }]
+
+  # --- Family & Kinship -------------------------------------------------------
+  parent child relationship: [{ theme: parenthood, salience: 0.9 }]
+  father son relationship:
+    [{ theme: parenthood, salience: 0.9 }, { theme: generational_conflict, salience: 0.4 }]
+  mother son relationship: [{ theme: parenthood, salience: 0.9 }]
+  father daughter relationship: [{ theme: parenthood, salience: 0.9 }]
+  mother daughter relationship: [{ theme: parenthood, salience: 0.9 }]
+  single parent: [{ theme: parenthood, salience: 0.9 }]
+  adoption: [{ theme: chosen_family, salience: 0.8 }, { theme: parenthood, salience: 0.6 }]
+  family relationships: [{ theme: parenthood, salience: 0.4 }]
+  dysfunctional family:
+    [{ theme: estrangement, salience: 0.8 }, { theme: generational_conflict, salience: 0.5 }]
+  sibling relationship: [{ theme: sibling_rivalry, salience: 0.7 }]
+  sibling rivalry: [{ theme: sibling_rivalry, salience: 1.0 }]
+  brother brother relationship: [{ theme: sibling_rivalry, salience: 0.7 }]
+  inheritance: [{ theme: inheritance, salience: 1.0 }]
+  caregiver: [{ theme: caregiving, salience: 1.0 }]
+  dementia: [{ theme: caregiving, salience: 0.7 }, { theme: memory, salience: 0.8 }]
+  found family: [{ theme: chosen_family, salience: 1.0 }]
+
+  # --- Faith, Survival, War, Class, Art, Nature, Coming of Age ---------------
+  religion: [{ theme: religion_and_doubt, salience: 0.9 }]
+  faith: [{ theme: religion_and_doubt, salience: 0.9 }]
+  priest: [{ theme: religion_and_doubt, salience: 0.7 }]
+  god: [{ theme: religion_and_doubt, salience: 0.7 }, { theme: transcendence, salience: 0.5 }]
+  existentialism: [{ theme: existentialism, salience: 1.0 }]
+  nihilism: [{ theme: nihilism, salience: 1.0 }]
+  death: [{ theme: mortality, salience: 0.8 }]
+  afterlife: [{ theme: mortality, salience: 0.7 }, { theme: transcendence, salience: 0.7 }]
+  terminal illness: [{ theme: mortality, salience: 1.0 }]
+  redemption: [{ theme: redemption, salience: 1.0 }]
+  self sacrifice: [{ theme: sacrifice, salience: 1.0 }]
+  martyr: [{ theme: sacrifice, salience: 0.9 }]
+  survival: [{ theme: endurance, salience: 0.9 }]
+  shipwreck: [{ theme: isolation_survival, salience: 0.9 }]
+  stranded: [{ theme: isolation_survival, salience: 1.0 }]
+  post-apocalyptic: [{ theme: apocalypse, salience: 1.0 }]
+  apocalypse: [{ theme: apocalypse, salience: 1.0 }]
+  end of the world: [{ theme: apocalypse, salience: 1.0 }]
+  pandemic: [{ theme: apocalypse, salience: 0.7 }, { theme: disaster, salience: 0.7 }]
+  kidnapping: [{ theme: captivity, salience: 0.9 }]
+  hostage: [{ theme: captivity, salience: 0.9 }]
+  escape: [{ theme: escape, salience: 1.0 }]
+  prison escape: [{ theme: escape, salience: 1.0 }, { theme: captivity, salience: 0.8 }]
+  natural disaster: [{ theme: disaster, salience: 1.0 }]
+  race against time: [{ theme: endurance, salience: 0.5 }]
+  war: [{ theme: war, salience: 1.0 }]
+  world war ii: [{ theme: war, salience: 1.0 }]
+  world war i: [{ theme: war, salience: 1.0 }]
+  vietnam war: [{ theme: war, salience: 1.0 }]
+  civil war: [{ theme: war, salience: 0.9 }]
+  military: [{ theme: war, salience: 0.6 }]
+  army: [{ theme: war, salience: 0.6 }]
+  soldier: [{ theme: war, salience: 0.7 }]
+  ptsd: [{ theme: trauma, salience: 1.0 }, { theme: aftermath, salience: 0.6 }]
+  trauma: [{ theme: trauma, salience: 1.0 }]
+  holocaust: [{ theme: genocide, salience: 1.0 }, { theme: trauma, salience: 0.6 }]
+  genocide: [{ theme: genocide, salience: 1.0 }]
+  violence: [{ theme: cycle_of_violence, salience: 0.5 }]
+  gore: [{ theme: cycle_of_violence, salience: 0.3 }]
+  poverty: [{ theme: poverty, salience: 1.0 }]
+  homelessness: [{ theme: poverty, salience: 1.0 }]
+  greed: [{ theme: greed, salience: 1.0 }]
+  wealth: [{ theme: wealth_and_isolation, salience: 0.7 }]
+  capitalism: [{ theme: labor_and_exploitation, salience: 0.7 }, { theme: greed, salience: 0.5 }]
+  working class:
+    [{ theme: labor_and_exploitation, salience: 0.8 }, { theme: social_mobility, salience: 0.4 }]
+  american dream: [{ theme: the_american_dream, salience: 1.0 }]
+  social class: [{ theme: social_mobility, salience: 0.8 }]
+  artist:
+    [{ theme: artistic_obsession, salience: 0.7 }, { theme: craft_and_mastery, salience: 0.5 }]
+  painter: [{ theme: artistic_obsession, salience: 0.8 }]
+  writer:
+    [{ theme: storytelling_itself, salience: 0.6 }, { theme: artistic_obsession, salience: 0.5 }]
+  filmmaking: [{ theme: storytelling_itself, salience: 1.0 }]
+  music: [{ theme: performance, salience: 0.7 }, { theme: craft_and_mastery, salience: 0.4 }]
+  musician: [{ theme: performance, salience: 0.8 }, { theme: craft_and_mastery, salience: 0.5 }]
+  fame: [{ theme: fame, salience: 1.0 }]
+  hollywood: [{ theme: fame, salience: 0.6 }, { theme: storytelling_itself, salience: 0.5 }]
+  censorship: [{ theme: censorship, salience: 1.0 }]
+  wilderness: [{ theme: wilderness, salience: 1.0 }]
+  nature: [{ theme: wilderness, salience: 0.6 }]
+  animals: [{ theme: animals_and_humans, salience: 0.9 }]
+  dog: [{ theme: animals_and_humans, salience: 0.8 }]
+  climate change: [{ theme: climate_and_collapse, salience: 1.0 }]
+  environmentalism:
+    [
+      { theme: exploitation_of_nature, salience: 0.8 },
+      { theme: climate_and_collapse, salience: 0.6 },
+    ]
+  farm: [{ theme: land_and_belonging, salience: 0.7 }]
+  coming of age:
+    [{ theme: loss_of_innocence, salience: 0.8 }, { theme: leaving_home, salience: 0.4 }]
+  childhood: [{ theme: loss_of_innocence, salience: 0.6 }]
+  teenager: [{ theme: loss_of_innocence, salience: 0.5 }, { theme: belonging, salience: 0.4 }]
+  bullying: [{ theme: bullying_and_cruelty, salience: 1.0 }]
+  mentor: [{ theme: mentorship, salience: 1.0 }]
+  teacher: [{ theme: mentorship, salience: 0.8 }]
+  graduation: [{ theme: leaving_home, salience: 0.7 }]
+  road trip: [{ theme: leaving_home, salience: 0.5 }, { theme: self_invention, salience: 0.4 }]
+
+  # --- Added after measuring unmapped frequency against the real seeded corpus.
+  # These were the genuine themes in the top-70 unmapped list; everything else
+  # in it was a mode, a setting, a period or a mood and went to `excluded`.
+  husband wife relationship: [{ theme: marriage, salience: 0.9 }]
+  "love of one's life":
+    [{ theme: marriage, salience: 0.5 }, { theme: unrequited_love, salience: 0.3 }]
+  dying and death: [{ theme: mortality, salience: 1.0 }]
+  suicide attempt: [{ theme: mental_illness, salience: 0.9 }, { theme: mortality, salience: 0.5 }]
+  alcoholic: [{ theme: addiction, salience: 1.0 }]
+  rape: [{ theme: trauma, salience: 0.9 }]
+  child abuse: [{ theme: trauma, salience: 1.0 }, { theme: bullying_and_cruelty, salience: 0.4 }]
+  domestic violence: [{ theme: cycle_of_violence, salience: 0.8 }, { theme: trauma, salience: 0.7 }]
+  jealousy: [{ theme: obsession, salience: 0.6 }, { theme: infidelity, salience: 0.3 }]
+  police: [{ theme: investigation, salience: 0.5 }]
+  investigation: [{ theme: investigation, salience: 1.0 }]
+  robbery: [{ theme: organized_crime, salience: 0.4 }, { theme: greed, salience: 0.4 }]
+  dragon:
+    [
+      { theme: monsters_and_the_monstrous, salience: 0.7 },
+      { theme: magic_and_enchantment, salience: 0.4 },
+    ]
+  orphan: [{ theme: chosen_family, salience: 0.5 }, { theme: loss_of_innocence, salience: 0.4 }]
+  anthropomorphism: [{ theme: animals_and_humans, salience: 0.8 }]
+  post-apocalyptic future: [{ theme: apocalypse, salience: 1.0 }]
+  single mother: [{ theme: parenthood, salience: 0.9 }]
+  samurai:
+    [{ theme: training_and_discipline, salience: 0.5 }, { theme: craft_and_mastery, salience: 0.3 }]
+  knight: [{ theme: heroism, salience: 0.5 }]
+  pirate: [{ theme: escape, salience: 0.3 }]
+  small town life: [{ theme: belonging, salience: 0.5 }]
+  father figure: [{ theme: parenthood, salience: 0.7 }, { theme: mentorship, salience: 0.5 }]
+  coming out of retirement: [{ theme: purpose_and_vocation, salience: 0.6 }]
+  midlife crisis: [{ theme: purpose_and_vocation, salience: 0.7 }, { theme: aging, salience: 0.6 }]
+  class differences: [{ theme: social_mobility, salience: 0.8 }]
+  hitman: [{ theme: moral_ambiguity, salience: 0.5 }, { theme: organized_crime, salience: 0.4 }]
+  cult: [{ theme: religion_and_doubt, salience: 0.7 }, { theme: authoritarianism, salience: 0.4 }]
+  spy: [{ theme: secret_identity, salience: 0.6 }, { theme: impostor_identity, salience: 0.4 }]
+  nuclear war: [{ theme: apocalypse, salience: 0.8 }, { theme: war, salience: 0.6 }]
+  torture: [{ theme: trauma, salience: 0.7 }, { theme: captivity, salience: 0.5 }]

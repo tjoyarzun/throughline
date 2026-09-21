@@ -439,6 +439,32 @@ export const availability = core.table(
   ],
 );
 
+/**
+ * Raw provider keywords per title.
+ *
+ * NOT concepts and NOT edges. A folksonomy of ~8k terms mixing settings
+ * ("new york city"), objects ("robot"), plot devices ("time loop") and tone
+ * ("dystopia") is provider input, not ontological fact — putting it in
+ * core.concept would pollute the vocabulary, and putting it in core.edge is
+ * rejected by the domain/range trigger, correctly. This table is the input to
+ * core.crosswalk_keyword_theme and nothing else.
+ */
+export const titleKeyword = core.table(
+  'title_keyword',
+  {
+    titleId: uuid('title_id')
+      .notNull()
+      .references(() => title.id, { onDelete: 'cascade' }),
+    keywordSourceId: text('keyword_source_id').notNull(),
+    keywordLabel: text('keyword_label').notNull(),
+    source: text('source').notNull().default('tmdb'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.titleId, t.keywordSourceId] }),
+    index('title_keyword_label_idx').on(t.keywordSourceId),
+  ],
+);
+
 /** The curated folksonomy-to-vocabulary mapping. Most keywords map to nothing. */
 export const crosswalkKeywordTheme = core.table(
   'crosswalk_keyword_theme',
