@@ -33,6 +33,36 @@ cannot read, so no destructive migration ships in the same deploy as the code th
 column. Add the column, deploy the code that writes both, deploy the code that reads the new one,
 then drop the old one in a later deploy.
 
+## Cron on the Hobby plan — a real constraint, not a detail
+
+**Vercel rejects any cron schedule more frequent than daily on Hobby**, at deploy
+time, with `Hobby accounts are limited to daily Cron Jobs`. It is not a warning; the whole
+deployment fails. Two of ours failed this way before `scripts/check-vercel.ts` existed.
+
+`docs/api.md` describes a per-minute drain. That is the Pro-plan design and remains the target.
+What actually ships on Hobby:
+
+| Job              | Designed    | On Hobby    |
+| ---------------- | ----------- | ----------- |
+| `drain`          | `* * * * *` | `0 4 * * *` |
+| `refresh-degree` | `0 5 * * *` | unchanged   |
+| `housekeeping`   | `0 2 * * *` | unchanged   |
+
+**Consequence for Phase 4.** A daily drain makes lazy ingest unusable: opening an untracked title
+would enqueue a hydrate job that runs up to 24 hours later. Before lazy hydration ships, one of:
+
+1. Upgrade to Pro and restore the per-minute drain (then set `VERCEL_PLAN=pro` so `check-vercel`
+   stops enforcing the daily rule).
+2. Run the synchronous minimal fetch inline and treat the queue as best-effort enrichment — which
+   is roughly what [api.md](api.md) already describes for the lazy path.
+3. Drive `/api/cron/drain` from an external scheduler. Vercel only limits its own scheduler, not
+   inbound requests to the route.
+
+Option 2 needs no money and no vendor, so it is the default unless the latency proves unacceptable.
+
+`scripts/check-vercel.ts` runs in CI and in `pnpm verify`: it fails on a cron path with no route,
+and on any sub-daily schedule while `VERCEL_PLAN` is unset or `hobby`.
+
 ## Post-deploy smoke test
 
 Scripted, runs automatically after a production deploy, ~20s:

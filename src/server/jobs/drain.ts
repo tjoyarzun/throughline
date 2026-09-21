@@ -65,3 +65,32 @@ export async function drainQueue(databaseUrl: string): Promise<DrainResult> {
     await sql.end();
   }
 }
+
+/**
+ * Runs a maintenance handler directly and records the outcome in core.job.
+ *
+ * The record is not bookkeeping for its own sake: /api/health asserts
+ * FRESHNESS per cron kind, so a task that never records a run looks stale
+ * whether or not it ran. A maintenance job that succeeds at doing nothing is
+ * not healthy, and neither is one that succeeds invisibly.
+ */
+export async function runMaintenanceJob(
+  databaseUrl: string,
+  kind: string,
+): Promise<{ job: string; ok: boolean; elapsed_ms: number; error?: string }> {
+  const sql = postgres(databaseUrl, { max: 1, prepare: false, onnotice: () => {} });
+  const started = Date.now();
+  try {
+    await runJob(sql, { id: 'cron', kind, payload: {}, attempts: 0 });
+    await sql`INSERT INTO core.job (kind, payload, status, finished_at)
+              VALUES (${kind}, '{}'::jsonb, 'done', now())`;
+    return { job: kind, ok: true, elapsed_ms: Date.now() - started };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    await sql`INSERT INTO core.job (kind, payload, status, last_error, finished_at)
+              VALUES (${kind}, '{}'::jsonb, 'failed', ${error.slice(0, 2000)}, now())`;
+    return { job: kind, ok: false, elapsed_ms: Date.now() - started, error };
+  } finally {
+    await sql.end();
+  }
+}

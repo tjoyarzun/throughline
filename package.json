@@ -21,7 +21,7 @@
     "check-locale": "bash scripts/check-locale.sh",
     "check-spelling": "cspell --no-progress --no-summary \"**/*.{ts,tsx,md,yaml,yml,css}\"",
     "check-env": "tsx scripts/check-env.ts",
-    "verify": "pnpm check-drift && pnpm typecheck && pnpm lint && pnpm check-locale && pnpm check-spelling && pnpm check-layers && pnpm test",
+    "verify": "pnpm check-drift && pnpm typecheck && pnpm lint && pnpm check-locale && pnpm check-spelling && pnpm check-layers && pnpm check-vercel && pnpm test",
     "check-layers": "bash scripts/check-layers.sh",
     "check-drift": "tsx scripts/check-drift.ts",
     "db:generate": "drizzle-kit generate",
@@ -31,7 +31,8 @@
     "test:strict": "vitest run --reporter=json --outputFile=.vitest/json/output.json && tsx scripts/assert-no-skips.ts",
     "seed": "tsx scripts/seed.ts",
     "derive:themes": "tsx scripts/derive-themes.ts",
-    "enrich:wikidata": "tsx scripts/enrich-wikidata.ts"
+    "enrich:wikidata": "tsx scripts/enrich-wikidata.ts",
+    "check-vercel": "tsx scripts/check-vercel.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

@@ -66,6 +66,12 @@ jobs:
       - name: Layer boundary (sem.* only)
         run: pnpm check-layers
 
+      # Two Vercel deployments failed on config that `pnpm build` accepts
+      # happily — cron paths with no route, and sub-daily schedules the Hobby
+      # plan rejects. Neither is visible locally without this.
+      - name: Vercel config
+        run: pnpm check-vercel
+
       - name: Apply database
         run: pnpm db:migrate
 
