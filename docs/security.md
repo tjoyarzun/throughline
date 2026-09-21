@@ -17,11 +17,58 @@ sizing is a documented decision, not an oversight.
 
 ## Authentication
 
-Better Auth — [ADR 0009](adr/0009-better-auth.md). Passkey > email OTP > Google OAuth. Sessions are
-httpOnly / Secure / SameSite=Lax, 30-day rolling with 7-day refresh, stored server-side so
-"sign out everywhere" is three lines.
+Better Auth — [ADR 0009](adr/0009-better-auth.md). Email OTP today; passkeys are the intended
+primary method. Sessions are httpOnly / Secure / SameSite=Lax, 30-day rolling with 7-day refresh,
+stored server-side so "sign out everywhere" is a delete.
 
-Invite-only is enforced in a server-side `before` hook, not the UI.
+A six-digit code rather than a magic link: on a phone a link opens in whichever browser handles
+mail, which is frequently not the one the person started in, and the session lands where they are
+not looking.
+
+**Better Auth's user model IS `usr.account`.** Its own `account` model means OAuth links — a
+different thing from ours, which is the human being — so that one moved to `usr.oauth_account`. The
+payoff is that the session user id and the account id are the same value, so `app.account_id` for
+RLS needs no lookup and the two can never drift apart. Do not also set `modelName` overrides: naming
+the user model `account` collides with Better Auth's own, and the failure is opaque
+(`Field email not found in model account`).
+
+### The authentication bootstrap
+
+**Sign-in has to read `usr.account` before a session exists.** Looking a user up by email happens
+when there is no `app.account_id` to filter by — and `usr.account` has `FORCE ROW LEVEL SECURITY`,
+which binds the table owner too, and the owner is what the application connects as in production.
+Without a way in, Better Auth simply cannot work.
+
+The tempting fix is a policy like `USING (usr.current_account_id() IS NULL)`. **That is a
+disaster**: it means any query that forgets `withUser()` reads every account, which is precisely the
+leak this design exists to prevent.
+
+The fix is a separate role:
+
+| Role       | On `usr.account`                         | On ratings, viewing, notes, shares | On `core` |
+| ---------- | ---------------------------------------- | ---------------------------------- | --------- |
+| `app_web`  | own row only, via RLS                    | own rows only, via RLS             | SELECT    |
+| `app_auth` | unrestricted, via a role-targeted policy | **no grant at all**                | no grant  |
+
+`AUTH_DATABASE_URL` points Better Auth at `app_auth`. It falls back to the main URL when unset,
+which is fine locally (a superuser bypasses RLS) but **not in production** — set it.
+
+`tests/authz/auth-bootstrap.test.ts` proves both halves: `app_auth` can find and create users with
+no session, and is refused on every table holding viewing history.
+
+### Invite-only
+
+Enforced in a Better Auth `before` hook on `/email-otp/send-verification-otp`, so an uninvited
+person is refused **before a code is ever sent** rather than receiving an email they cannot use. A
+direct POST hits the same check; the UI is not the gate.
+
+Redemption is one statement with `RETURNING`, not select-then-update. The obvious version is racy:
+two sessions both see an unredeemed invite, and even with `redeemed_at IS NULL` in the UPDATE's
+WHERE the second affects zero rows — which still reports success unless the caller checks. One
+invite would admit two people. `tests/authz/invite-gate.test.ts` runs both redemptions concurrently
+and asserts exactly one succeeds.
+
+Create invites with `pnpm invite [email]`; list them with `pnpm invite --list`.
 
 ## Authorization — three concentric layers
 

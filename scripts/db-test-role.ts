@@ -50,7 +50,25 @@ const main = async (): Promise<void> => {
     console.error(`db-test-role: ${ROLE} can bypass RLS — the authz suite would be meaningless`);
     process.exit(1);
   }
+  // The authentication role, so the bootstrap path can be tested as production
+  // will actually run it rather than as a superuser that bypasses everything.
+  const AUTH_ROLE = process.env.TEST_AUTH_ROLE ?? 'throughline_auth';
+  await sql.unsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${AUTH_ROLE}') THEN
+        CREATE ROLE ${AUTH_ROLE} LOGIN PASSWORD '${PASSWORD}';
+      ELSE
+        ALTER ROLE ${AUTH_ROLE} WITH LOGIN PASSWORD '${PASSWORD}';
+      END IF;
+    END $$;
+  `);
+  await sql.unsafe(`ALTER ROLE ${AUTH_ROLE} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`);
+  await sql.unsafe(`GRANT app_auth TO ${AUTH_ROLE}`);
+  await sql.unsafe(`GRANT CONNECT ON DATABASE "${db[0]!.current_database}" TO ${AUTH_ROLE}`);
+
   console.log(`db-test-role: ${ROLE} ready (nosuperuser, nobypassrls, member of app_web)`);
+  console.log(`db-test-role: ${AUTH_ROLE} ready (member of app_auth)`);
   await sql.end();
 };
 

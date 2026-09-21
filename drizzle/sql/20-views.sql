@@ -10,6 +10,31 @@
 -- base tables were never the problem. The authz suite caught it; nothing else would
 -- have. Requires Postgres 15+.
 
+-- ── Recreate from scratch, every time ───────────────────────────────────────
+--
+-- CREATE OR REPLACE VIEW cannot rename a column, change its type, or insert a
+-- column anywhere but the end. Adding `canonical_predicate` to
+-- sem.edge_bidirectional failed with:
+--
+--   cannot change name of view column "path_weight" to "canonical_predicate"
+--
+-- Views hold no data, so dropping and recreating them costs nothing — and
+-- because migrations now run on EVERY deploy (see docs/deployment.md), a view
+-- change that only works against an empty database would have failed the next
+-- production deploy rather than the first.
+--
+-- CASCADE also drops core.node_degree, which reads sem.edge. 50-matviews.sql
+-- runs after this file and rebuilds it.
+DROP VIEW IF EXISTS sem.user_viewing CASCADE;
+DROP VIEW IF EXISTS sem.user_title CASCADE;
+DROP VIEW IF EXISTS sem.availability CASCADE;
+DROP VIEW IF EXISTS sem.node CASCADE;
+DROP VIEW IF EXISTS sem.concept CASCADE;
+DROP VIEW IF EXISTS sem.person CASCADE;
+DROP VIEW IF EXISTS sem.title CASCADE;
+DROP VIEW IF EXISTS sem.edge_bidirectional CASCADE;
+DROP VIEW IF EXISTS sem.edge CASCADE;
+
 -- ── Unified edge surface ─────────────────────────────────────────────────────
 -- Three physical shapes (typed credit, generic edge, derived edge), one logical
 -- graph. The traversal layer never knows there is more than one table.

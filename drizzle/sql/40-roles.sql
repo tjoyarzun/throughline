@@ -49,3 +49,20 @@ GRANT EXECUTE ON FUNCTION core.finish_job(uuid)                 TO app_ingest;
 GRANT EXECUTE ON FUNCTION core.fail_job(uuid, text, int)        TO app_ingest;
 GRANT EXECUTE ON FUNCTION core.enqueue_job(text, jsonb)         TO app_web, app_ingest;
 GRANT EXECUTE ON FUNCTION core.recency_decay(timestamptz)       TO app_web, app_ingest;
+
+-- ── app_auth: authentication only ───────────────────────────────────────────
+-- Deliberately narrow. It can manage identities and sessions and nothing else —
+-- no ratings, no viewing history, no notes, no global model.
+GRANT USAGE ON SCHEMA usr TO app_auth;
+GRANT SELECT, INSERT, UPDATE, DELETE ON usr.account            TO app_auth;
+GRANT SELECT, INSERT, UPDATE, DELETE ON usr.auth_session       TO app_auth;
+GRANT SELECT, INSERT, UPDATE, DELETE ON usr.oauth_account      TO app_auth;
+GRANT SELECT, INSERT, UPDATE, DELETE ON usr.auth_verification  TO app_auth;
+GRANT SELECT, UPDATE                 ON usr.invite             TO app_auth;
+REVOKE ALL ON usr.title_state, usr.state_event, usr.rating, usr.viewing,
+              usr.episode_progress, usr.note, usr.share FROM app_auth;
+GRANT EXECUTE ON FUNCTION core.uuid_generate_v7() TO app_auth;
+
+-- app_web must never reach the auth tables directly; it goes through the
+-- library, which uses the app_auth connection.
+REVOKE ALL ON usr.auth_session, usr.oauth_account, usr.auth_verification FROM app_web;

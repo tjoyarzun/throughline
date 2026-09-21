@@ -7,12 +7,13 @@ two things connected?"_ with ranked, narrated paths through a knowledge graph.
 
 Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
 
-## Current phase: 3 — Auth and shell
+## Current phase: 4 — Search and title detail
 
-Phases 0-2 are complete. The corpus is loaded: **4,972 titles, 58,714 people, 111,606 credits,
-148,074 graph edges**, 120 themes derived over 76% of keyworded titles. **Do not build features
-from later phases.** Phase 3 is Better Auth, invite-only signup, middleware and `/me` — it depends
-on Phase 1 only and could have run in parallel with Phase 2.
+Phases 0-3 are complete. The corpus is loaded (**4,972 titles, 148,074 graph edges**) and auth
+works: invite-only email OTP, middleware, `/me`, 258 tests.
+
+**Phase 4 is the first phase a user can SEE.** Search, title detail, person detail, lazy ingest.
+Until it lands, `/search` and `/library` are stubs — that is expected, not a bug.
 The phase plan is in [docs/development-plan.md](docs/development-plan.md).
 
 ### Local databases
@@ -79,7 +80,12 @@ These are decided. Do not relitigate them without writing an ADR.
   `FORCE`, so the suite passes vacuously. Tests connect via `TEST_DATABASE_URL` as
   `throughline_app`, and assert they cannot bypass before asserting anything else.
 - **Every repository function touching user data takes `accountId` as its first parameter.** Never
-  read it from ambient context.
+  read it from ambient context. `requireAccountId()` throws rather than returning null, so a
+  forgotten check cannot become an unscoped query.
+- **Authentication connects as `app_auth`, not `app_web`.** Sign-in must read `usr.account` before
+  a session exists, and that table has FORCE RLS. Never "solve" this with a policy that permits
+  access when no account is set — that hands every account to any query that forgot `withUser()`.
+  [security.md](docs/security.md)
 - **A zero-row read where a row was asserted to exist is a bug, not an empty state.** Throw.
 - **The graph library is dynamically imported on `/universe/*` only.** It must never enter the
   shared bundle.

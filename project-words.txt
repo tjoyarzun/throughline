@@ -278,3 +278,13 @@ Toriyama
 Fullmetal
 Shippūden
 Strugatsky
+Resend
+otp
+OTP
+betterauth
+emailOTP
+unredeemed
+reimplementation
+reimplementing
+bootstrapfixture
+ABCDEFGHJKLMNPQRSTUVWXYZ

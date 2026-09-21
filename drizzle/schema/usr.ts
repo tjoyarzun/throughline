@@ -29,9 +29,24 @@ const pk = () =>
     .primaryKey()
     .default(sql`core.uuid_generate_v7()`);
 
+/**
+ * The person. ALSO Better Auth's user model.
+ *
+ * Better Auth wants a `user` table and its own `account` table for OAuth
+ * links — and its `account` means something completely different from ours,
+ * which is the human being. Rather than run two identity tables and keep them
+ * in sync, Better Auth is pointed at THIS table via modelName, with its field
+ * names mapped (`name` -> display_name, `image` -> avatar_url), and its OAuth
+ * table renamed to usr.oauth_account.
+ *
+ * The payoff is that `usr.account.id` IS the session's user id, so
+ * `app.account_id` needs no lookup and every RLS policy already works.
+ */
 export const account = usr.table('account', {
   id: pk(),
   email: citext('email').notNull().unique(),
+  /** Better Auth requires a boolean here; the timestamp is ours, for the record. */
+  emailVerified: boolean('email_verified').notNull().default(false),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),
@@ -44,6 +59,78 @@ export const account = usr.table('account', {
   updatedAt,
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
+
+// ── Better Auth tables ───────────────────────────────────────────────────────
+// Named auth_* so it is obvious which tables the library owns. RLS is
+// deliberately NOT enabled on these: Better Auth queries them before a session
+// exists, so there is no app.account_id to filter by. They are reachable only
+// through the library's own server-side handlers, never from application code.
+
+/**
+ * Auth-table ids are database-generated.
+ *
+ * `generateId: false` in the Better Auth config is not optional: usr.account.id
+ * is a uuid that every RLS policy filters on, and the library's own id format
+ * is a random string that would not even cast. But that setting is global, so
+ * the library stops generating ids for ITS tables too — and they must supply
+ * their own default or every insert fails with a not-null violation.
+ */
+const authId = () =>
+  text('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()::text`);
+
+export const session = usr.table(
+  'auth_session',
+  {
+    id: authId(),
+    token: text('token').notNull().unique(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => account.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index('auth_session_user_idx').on(t.userId)],
+);
+
+export const oauthAccount = usr.table(
+  'oauth_account',
+  {
+    id: authId(),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => account.id, { onDelete: 'cascade' }),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scope: text('scope'),
+    password: text('password'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index('oauth_account_user_idx').on(t.userId)],
+);
+
+export const verification = usr.table(
+  'auth_verification',
+  {
+    id: authId(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index('auth_verification_identifier_idx').on(t.identifier)],
+);
 
 /** Invite-only signup, enforced server-side. See docs/adr/0009. */
 export const invite = usr.table(

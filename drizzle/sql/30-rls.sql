@@ -51,3 +51,39 @@ DROP POLICY IF EXISTS append_only_delete ON usr.state_event;
 
 COMMENT ON POLICY own_rows ON usr.title_state IS
   'Requires app.account_id set via SET LOCAL inside a transaction. See withUser().';
+
+-- ── The authentication bootstrap problem ────────────────────────────────────
+--
+-- Authentication has to read usr.account BEFORE a session exists: sign-in looks
+-- a user up by email, sign-up inserts one. At that moment there is no
+-- app.account_id, so the own_account policy matches nothing and Better Auth
+-- cannot work. FORCE ROW LEVEL SECURITY makes this true even for the table
+-- owner, which is exactly what the application connects as in production.
+--
+-- The tempting fix — a policy like `USING (current_account_id() IS NULL)` — is
+-- a disaster: it means any query that forgets withUser() reads EVERY account.
+-- That is precisely the leak the whole design exists to prevent.
+--
+-- The correct fix is a separate role. app_auth may read and write the identity
+-- tables unconditionally; app_web may only ever see its own row. Two roles,
+-- two connection strings, and the privilege is scoped to the thing that
+-- genuinely needs it.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_auth') THEN
+    CREATE ROLE app_auth NOLOGIN;
+  END IF;
+END $$;
+
+DROP POLICY IF EXISTS auth_service ON usr.account;
+CREATE POLICY auth_service ON usr.account
+  TO app_auth
+  USING (true)
+  WITH CHECK (true);
+
+-- Better Auth's own tables carry no user-readable content and are never touched
+-- by application code, so they are not RLS-protected. They are reachable only
+-- through the library's server-side handlers, on the app_auth connection.
+COMMENT ON POLICY auth_service ON usr.account IS
+  'Sign-in must find a user before a session exists. Scoped to app_auth so
+   app_web can never use it. See docs/security.md#the-authentication-bootstrap.';

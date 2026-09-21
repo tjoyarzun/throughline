@@ -25,8 +25,10 @@
     "enrich:wikidata": "tsx scripts/enrich-wikidata.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "invite": "tsx scripts/invite.ts",
     "lint": "eslint .",
     "seed": "tsx scripts/seed.ts",
+    "seed:production": "bash scripts/seed-production.sh",
     "start": "next start",
     "test": "vitest run",
     "test:strict": "vitest run --reporter=json --outputFile=.vitest/json/output.json && tsx scripts/assert-no-skips.ts",
@@ -37,6 +39,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "better-auth": "^1.7.5",
     "drizzle-orm": "^0.45.2",
     "next": "16.3.5",
     "postgres": "^3.4.9",
