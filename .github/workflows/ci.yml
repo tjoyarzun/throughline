@@ -77,6 +77,25 @@ jobs:
       - name: Tests
         run: pnpm test
 
+      # A suite that silently skips is worse than one that fails: it reports
+      # green while proving nothing. The database tests are the most important
+      # ones here, so assert they actually executed.
+      - name: Assert the database suites actually ran
+        run: |
+          out=$(pnpm vitest run --reporter=json 2>/dev/null | tail -1)
+          skipped=$(node -e "
+            const r = JSON.parse(process.argv[1]);
+            const names = r.testResults.flatMap(f => f.assertionResults)
+              .filter(a => a.status === 'pending' || a.status === 'skipped')
+              .map(a => a.fullName);
+            console.log(names.length ? names.length + ' skipped: ' + names.slice(0,3).join(' | ') : '');
+          " "$out")
+          if [ -n "$skipped" ]; then
+            echo "::error::Tests were skipped in CI — $skipped"
+            exit 1
+          fi
+          echo "ok — no tests skipped
+
       # No secret should ever be exposed to the client bundle.
       - name: No public secrets
         run: |

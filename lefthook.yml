@@ -1,3 +1,6 @@
+# .env.local is sourced so the database suites actually run. Without it the RLS
+# and ontology-enforcement tests skip and the hook still reports green — a check
+# that cannot go red is theater.
 pre-commit:
   parallel: true
   commands:
@@ -8,7 +11,12 @@ pre-commit:
     format:
       glob: '*.{ts,tsx,md,css,json,yaml,yml}'
       run: pnpm prettier --check {staged_files}
+
 pre-push:
   commands:
     verify:
-      run: pnpm verify
+      run: |
+        set -a
+        [ -f .env.local ] && . ./.env.local
+        set +a
+        pnpm verify

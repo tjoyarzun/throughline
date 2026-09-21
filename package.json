@@ -27,7 +27,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "db:test-role": "tsx scripts/db-test-role.ts"
+    "db:test-role": "tsx scripts/db-test-role.ts",
+    "test:strict": "vitest run --reporter=json --outputFile=.vitest/json/output.json && tsx scripts/assert-no-skips.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

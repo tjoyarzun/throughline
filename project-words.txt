@@ -145,3 +145,6 @@ translit
 flatrate
 unfavorited
 authzfixture
+vitest
+outputFile
+reporter
