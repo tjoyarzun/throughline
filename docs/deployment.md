@@ -24,9 +24,30 @@ Not yet done — Phase 0 is verified locally. Steps:
 | Preview    | any PR | Neon branch created per PR              |
 | Local      | —      | Neon branch `dev`, or local Postgres 17 |
 
-## Migrations
+## Migrations run on deploy, not from a laptop
 
-Drizzle Kit, run in a pre-deploy step as `app_migrate`.
+`package.json` defines `vercel-build` as `pnpm db:migrate && next build`. Vercel runs
+`vercel-build` in preference to `build` when it exists, so every deployment migrates its own
+database before the new code goes live. Local `pnpm build` is untouched and never connects to
+anything.
+
+**This is not just convenience.** Vercel marks environment variables as Sensitive, meaning their
+values are write-only and cannot be pulled back — `vercel env pull` returns `[SENSITIVE]`
+placeholders. That is the platform protecting the credentials correctly, and the right response is
+to run migrations where the credentials already live rather than to weaken the protection so a
+developer machine can hold them.
+
+Consequences worth knowing:
+
+- A failed migration **fails the deployment**, and the previous one keeps serving. That is the
+  behavior you want: never ship code against a schema that did not apply.
+- Preview deployments migrate their own Neon branch, so a schema change is exercised on a real
+  database before it reaches production.
+- Migrations must stay **idempotent** — they run on every deploy, not once. `scripts/db-migrate.ts`
+  tracks applied files in `core.__migrations` and every hand-written SQL file is written to be
+  re-runnable.
+- **Expand-then-contract still applies**, and matters more here: the migration runs _before_ the
+  new code is live, so the old code briefly runs against the new schema.
 
 **Expand-then-contract is mandatory.** A rollback of application code must never meet a schema it
 cannot read, so no destructive migration ships in the same deploy as the code that stops using the

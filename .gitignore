@@ -13,3 +13,4 @@ test-results/
 playwright-report/
 .vercel
 .vitest/
+.env*
