@@ -25,6 +25,8 @@
 --
 -- CASCADE also drops core.node_degree, which reads sem.edge. 50-matviews.sql
 -- runs after this file and rebuilds it.
+DROP VIEW IF EXISTS sem.title_full CASCADE;
+DROP VIEW IF EXISTS sem.title_credit CASCADE;
 DROP VIEW IF EXISTS sem.user_viewing CASCADE;
 DROP VIEW IF EXISTS sem.user_title CASCADE;
 DROP VIEW IF EXISTS sem.availability CASCADE;
@@ -177,6 +179,72 @@ CREATE OR REPLACE VIEW sem.availability AS
   JOIN core.organization o ON o.id = a.organization_id
   WHERE a.valid_to IS NULL OR a.valid_to > now();
 
+-- Credits with the person and character resolved. One view for the cast list,
+-- the crew highlight and a filmography, so none of them hand-roll the join.
+CREATE OR REPLACE VIEW sem.title_credit AS
+  SELECT
+    c.id, c.title_id, c.person_id, c.predicate, c.department, c.job,
+    c.billing_order, c.episode_count,
+    p.name  AS person_name,
+    p.slug  AS person_slug,
+    p.profile_path,
+    p.popularity AS person_popularity,
+    coalesce(ch.name, c.character_name_raw) AS character_name,
+    c.character_id
+  FROM core.credit c
+  JOIN core.person p ON p.id = c.person_id
+  LEFT JOIN core.character ch ON ch.id = c.character_id
+  WHERE c.episode_id IS NULL;
+
+/**
+ * Everything the detail page needs above the fold, in ONE query.
+ *
+ * The alternative is six round trips per page view — title, genres, themes,
+ * cast, crew, franchise — which is the single biggest latency risk in the app
+ * (docs/performance-log.md, bottleneck 2). Nesting them as jsonb costs one
+ * scan and keeps the page under the 3-round-trip budget.
+ */
+CREATE OR REPLACE VIEW sem.title_full AS
+  SELECT
+    t.*,
+    COALESCE((
+      SELECT jsonb_agg(x ORDER BY x.billing_order NULLS LAST, x.person_name)
+      FROM (
+        SELECT person_id, person_slug, person_name, profile_path,
+               character_name, billing_order
+        FROM sem.title_credit
+        WHERE title_id = t.id AND predicate = 'acted_in'
+        ORDER BY billing_order NULLS LAST
+        LIMIT 20
+      ) x
+    ), '[]'::jsonb) AS cast_members,
+    COALESCE((
+      SELECT jsonb_agg(x ORDER BY x.rank, x.person_name)
+      FROM (
+        SELECT person_id, person_slug, person_name, profile_path, job, predicate,
+               CASE predicate WHEN 'directed' THEN 1 WHEN 'wrote' THEN 2
+                              WHEN 'composed_for' THEN 3 ELSE 4 END AS rank
+        FROM sem.title_credit
+        WHERE title_id = t.id AND predicate <> 'acted_in'
+      ) x
+    ), '[]'::jsonb) AS crew,
+    COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('slug', w.slug, 'title', w.title, 'kind', w.kind,
+                                          'author', ap.name))
+      FROM core.edge e
+      JOIN core.work w ON w.id = e.object_id
+      LEFT JOIN core.person ap ON ap.id = w.author_person_id
+      WHERE e.subject_type = 'title' AND e.subject_id = t.id AND e.predicate = 'based_on'
+    ), '[]'::jsonb) AS based_on,
+    COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('id', col.id, 'slug', col.slug, 'name', col.name))
+      FROM core.edge e
+      JOIN core.collection col ON col.id = e.object_id
+      WHERE e.subject_type = 'title' AND e.subject_id = t.id
+        AND e.predicate = 'part_of_franchise'
+    ), '[]'::jsonb) AS franchises
+  FROM sem.title t;
+
 -- ── User surface (RLS-scoped) ────────────────────────────────────────────────
 -- Every list screen, card, and status chip reads this one view. Without it,
 -- "the watchlist with progress and ratings" is a four-table join repeated in a
@@ -254,4 +322,6 @@ ALTER VIEW sem.concept SET (security_invoker = true);
 ALTER VIEW sem.node SET (security_invoker = true);
 ALTER VIEW sem.availability SET (security_invoker = true);
 ALTER VIEW sem.user_title SET (security_invoker = true);
+ALTER VIEW sem.title_credit SET (security_invoker = true);
+ALTER VIEW sem.title_full SET (security_invoker = true);
 ALTER VIEW sem.user_viewing SET (security_invoker = true);
