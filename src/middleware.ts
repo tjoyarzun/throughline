@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
+import { isUngated } from '@/lib/route-access';
 
 /**
  * Route-level gate — the first of three authorization layers (see
@@ -12,20 +13,9 @@ import { getSessionCookie } from 'better-auth/cookies';
  * the two real layers, which is the correct division of labor: middleware is a
  * redirect convenience, not a security boundary.
  */
-const PUBLIC_PREFIXES = [
-  '/s/', // share pages — deliberately public
-  '/explore/', // public ontology pages (Phase 2 backlog)
-  '/auth/',
-  '/api/auth/',
-  '/api/cron/',
-  '/api/health',
-];
-
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
-  if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
+  if (isUngated(pathname)) return NextResponse.next();
   if (getSessionCookie(request)) return NextResponse.next();
 
   // Preserve where they were going, so sign-in returns them there.
