@@ -27,7 +27,7 @@ Ontology version 1. 21 predicates, 7 graph node types.
 |---|---|---|---|
 | `genre` | no | `tmdb.genres` | no |
 | `theme` | yes | `core.crosswalk_keyword_theme` | yes |
-| `mood` | yes | `manual` | no |
+| `mood` | yes | `ontology/moods.yaml` | no |
 | `keyword` | no | `tmdb.keywords` | no |
 | `format` | yes | `manual` | no |
 

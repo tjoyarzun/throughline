@@ -13,6 +13,7 @@ import {
 const onto = parse(readFileSync('ontology/ontology.yaml', 'utf8'));
 const themes = parse(readFileSync('ontology/themes.yaml', 'utf8'));
 const metrics = parse(readFileSync('ontology/metrics.yaml', 'utf8'));
+const moods = parse(readFileSync('ontology/moods.yaml', 'utf8'));
 const baseType = (t: string) => t.split(':')[0]!;
 
 describe('ontology <-> generated artifacts', () => {
@@ -116,6 +117,28 @@ describe('concept schemes and the theme vocabulary', () => {
     expect(all.length).toBeLessThanOrEqual(140);
   });
 
+  it('covers the dimensions a keyword census showed were missing', () => {
+    // A census of 448 top-rated and popular titles found substantial keyword mass
+    // with no home in v1: supernatural/magic (151 assignments), superhero and
+    // extraordinary power (121), rivalry and training (48), mental illness (27),
+    // sexuality and gender (26), time travel (21). Each now has one.
+    const all = Object.values(themes.clusters).flatMap((c: any) => Object.keys(c.themes));
+    for (const required of [
+      'magic_and_enchantment',
+      'monsters_and_the_monstrous',
+      'extraordinary_power',
+      'secret_identity',
+      'rivalry',
+      'mental_illness',
+      'sexual_identity',
+      'time_travel',
+      'dystopia',
+      'prejudice_and_otherness',
+    ]) {
+      expect(all, `${required} closes a measured coverage gap`).toContain(required);
+    }
+  });
+
   it('theme slugs are globally unique across clusters', () => {
     const all = Object.values(themes.clusters).flatMap((c: any) => Object.keys(c.themes));
     expect(new Set(all).size).toBe(all.length);
@@ -143,6 +166,50 @@ describe('concept schemes and the theme vocabulary', () => {
         expect(t.definition?.length ?? 0, `${cname}.${tname} definition`).toBeGreaterThan(20);
       }
     }
+  });
+});
+
+describe('the mood vocabulary', () => {
+  it('every mood has a definition and both axes', () => {
+    for (const [name, m] of Object.entries<any>(moods.moods)) {
+      expect(m.label, name).toBeTruthy();
+      expect(m.definition?.length ?? 0, `${name} definition`).toBeGreaterThan(20);
+      expect(typeof m.valence, `${name} valence`).toBe('number');
+      expect(typeof m.intensity, `${name} intensity`).toBe('number');
+    }
+  });
+
+  it('valence and intensity stay in their declared ranges', () => {
+    const [vMin, vMax] = moods.axes.valence.range;
+    const [iMin, iMax] = moods.axes.intensity.range;
+    for (const [name, m] of Object.entries<any>(moods.moods)) {
+      expect(m.valence, `${name} valence`).toBeGreaterThanOrEqual(vMin);
+      expect(m.valence, `${name} valence`).toBeLessThanOrEqual(vMax);
+      expect(m.intensity, `${name} intensity`).toBeGreaterThanOrEqual(iMin);
+      expect(m.intensity, `${name} intensity`).toBeLessThanOrEqual(iMax);
+    }
+  });
+
+  it('spans the valence axis, so "less depressing" has somewhere to go', () => {
+    // A vocabulary clustered at one end cannot answer the query it exists for.
+    const v = Object.values<any>(moods.moods).map((m) => m.valence);
+    expect(Math.min(...v)).toBeLessThan(-0.6);
+    expect(Math.max(...v)).toBeGreaterThan(0.6);
+    expect(v.filter((x) => x < 0).length).toBeGreaterThan(5);
+    expect(v.filter((x) => x > 0).length).toBeGreaterThan(5);
+  });
+
+  it('separates quiet from loud at the same valence', () => {
+    // Melancholy and Devastating are both negative; someone asking for one
+    // rarely wants the other. Intensity is what tells them apart.
+    const m = moods.moods;
+    expect(m.melancholy.valence).toBeLessThan(0);
+    expect(m.devastating.valence).toBeLessThan(0);
+    expect(m.devastating.intensity - m.melancholy.intensity).toBeGreaterThan(0.4);
+  });
+
+  it('mood is declared as a concept scheme in the ontology', () => {
+    expect(Object.keys(onto.concept_schemes)).toContain('mood');
   });
 });
 

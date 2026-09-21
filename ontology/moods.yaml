@@ -1,0 +1,164 @@
+# Throughline curated mood vocabulary — v1 DRAFT.
+#
+# STATUS: drafted 2026-09-20 from evidence, AWAITING EDITORIAL REVIEW alongside
+# themes.yaml. See docs/ontology.md#mood-changelog.
+#
+# WHY THIS EXISTS, AND WHY IT IS NOT PHASE 2.
+# A keyword census over 448 top-rated and popular titles found 5,724 keyword
+# assignments. 319 of them — more than any single theme gap — are TMDB sentiment
+# tags: `depressing`, `hopeful`, `tense`, `wistful`, `hilarious`, `comforting`.
+# They are not themes. Without a mood scheme the crosswalk drops them, and
+# "find something like Arrival but less depressing" has nothing to filter on.
+#
+# `valence` is the axis that makes that query work: negative values are bleak,
+# positive are warm. "Like X but less depressing" is nearest-neighbor on theme
+# and craft, constrained to valence > X. `intensity` separates quiet from loud
+# at the same valence — Melancholy and Devastating are both negative, and a
+# person asking for one rarely wants the other.
+#
+# Mood is NOT genre and NOT theme. A comedy can be bleak (Dr. Strangelove); a
+# war film can be uplifting (The Great Escape). Keeping the three schemes
+# separate is the whole reason any of them are useful.
+
+version: 1
+scheme: mood
+
+axes:
+  valence:
+    range: [-1.0, 1.0]
+    description: How the work leaves you. Negative is bleak, positive is warm.
+  intensity:
+    range: [0.0, 1.0]
+    description: Loudness of the affect, independent of its direction.
+
+moods:
+  devastating:
+    label: Devastating
+    definition: 'Emotionally flattening; the kind of film you need an hour after.'
+    valence: -0.9
+    intensity: 0.95
+  bleak:
+    label: Bleak
+    definition: 'A world offering no consolation, presented without flinching.'
+    valence: -0.8
+    intensity: 0.6
+  depressing:
+    label: Depressing
+    definition: 'Sustained lowness of spirit, without catharsis.'
+    valence: -0.7
+    intensity: 0.5
+  disturbing:
+    label: Disturbing
+    definition: 'Content that lodges and will not dislodge.'
+    valence: -0.7
+    intensity: 0.85
+  unsettling:
+    label: Unsettling
+    definition: 'Quietly wrong in a way that is hard to name.'
+    valence: -0.5
+    intensity: 0.5
+  tense:
+    label: Tense
+    definition: 'Sustained apprehension; the body will not relax.'
+    valence: -0.3
+    intensity: 0.8
+  melancholy:
+    label: Melancholy
+    definition: 'Sadness worn comfortably, closer to weather than to grief.'
+    valence: -0.3
+    intensity: 0.35
+  gritty:
+    label: Gritty
+    definition: 'Unromantic texture; dirt under the fingernails.'
+    valence: -0.3
+    intensity: 0.6
+  wistful:
+    label: Wistful
+    definition: 'Tender longing for something already gone.'
+    valence: -0.1
+    intensity: 0.3
+  ambiguous:
+    label: Ambiguous
+    definition: 'Deliberately unresolved; the feeling is yours to supply.'
+    valence: 0.0
+    intensity: 0.4
+  contemplative:
+    label: Contemplative
+    definition: 'Slow and interior; makes room for the viewer to think.'
+    valence: 0.0
+    intensity: 0.25
+  cerebral:
+    label: Cerebral
+    definition: 'Rewards attention and argument more than feeling.'
+    valence: 0.0
+    intensity: 0.4
+  dark_comic:
+    label: Darkly Comic
+    definition: 'Finds the joke in the awful, without softening the awful.'
+    valence: 0.0
+    intensity: 0.6
+  absurd:
+    label: Absurd
+    definition: 'Logic abandoned on purpose, and funnier for it.'
+    valence: 0.2
+    intensity: 0.6
+  epic:
+    label: Epic
+    definition: 'Scale and sweep; events larger than the people inside them.'
+    valence: 0.2
+    intensity: 0.85
+  thrilling:
+    label: Thrilling
+    definition: 'Propulsive and kinetic; pleasure taken in momentum.'
+    valence: 0.3
+    intensity: 0.9
+  intimate:
+    label: Intimate
+    definition: 'Small, close, and quiet; a few people in a few rooms.'
+    valence: 0.3
+    intensity: 0.3
+  whimsical:
+    label: Whimsical
+    definition: 'Playfully unserious about its own rules.'
+    valence: 0.5
+    intensity: 0.45
+  romantic:
+    label: Romantic
+    definition: 'Centered on the pleasure and ache of attachment.'
+    valence: 0.5
+    intensity: 0.5
+  awe_inspiring:
+    label: Awe-Inspiring
+    definition: 'Provokes wonder at something larger than the self.'
+    valence: 0.6
+    intensity: 0.8
+  cathartic:
+    label: Cathartic
+    definition: 'Earns its release; you feel better for having been put through it.'
+    valence: 0.6
+    intensity: 0.85
+  hopeful:
+    label: Hopeful
+    definition: 'Acknowledges the darkness and declines to end there.'
+    valence: 0.7
+    intensity: 0.5
+  comforting:
+    label: Comforting
+    definition: 'Low-stakes and reassuring; the rewatch on a bad day.'
+    valence: 0.7
+    intensity: 0.2
+  hilarious:
+    label: Hilarious
+    definition: 'Built to make you laugh, and succeeding.'
+    valence: 0.8
+    intensity: 0.7
+  uplifting:
+    label: Uplifting
+    definition: 'Leaves you better than it found you.'
+    valence: 0.85
+    intensity: 0.6
+  joyful:
+    label: Joyful
+    definition: 'Unmixed delight, without irony.'
+    valence: 0.9
+    intensity: 0.7

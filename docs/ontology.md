@@ -80,7 +80,7 @@ surfaces. Twenty-one predicates today. Adding one means editing `ontology/ontolo
 
 ## Theme vocabulary
 
-`ontology/themes.yaml` — 98 themes across 14 clusters, each with a definition. This is an
+`ontology/themes.yaml` — **120 themes across 17 clusters**, each with a definition. This is an
 **editorial position**, not provider data.
 
 TMDB keywords are not themes. They are a ~40k-term folksonomy mixing settings ("new york city"),

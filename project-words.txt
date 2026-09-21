@@ -148,3 +148,14 @@ authzfixture
 vitest
 outputFile
 reporter
+MyAnimeList
+shounen
+youkai
+romcom
+valence
+Devastating
+awestruck
+Strangelove
+Minari
+hauntings
+Hauntings

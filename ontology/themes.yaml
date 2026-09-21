@@ -43,6 +43,18 @@ clusters:
       purpose_and_vocation:
         label: Purpose & Vocation
         definition: 'The search for work worth doing.'
+      sexual_identity:
+        label: Sexual Identity
+        definition: 'Desire and orientation as a thing to be understood, hidden, or claimed.'
+      gender_and_expectation:
+        label: Gender & Expectation
+        definition: 'The roles a society assigns by gender, and the cost of refusing them.'
+      mental_illness:
+        label: Mental Illness
+        definition: 'A mind working against itself, and how the people around it respond.'
+      addiction:
+        label: Addiction
+        definition: 'Compulsion that outlives the wanting.'
 
   power_and_politics:
     label: Power & Politics
@@ -71,6 +83,15 @@ clusters:
       leadership_and_its_cost:
         label: Leadership & Its Cost
         definition: 'What command extracts from the one who holds it.'
+      dystopia:
+        label: Dystopia
+        definition: 'A society deliberately engineered wrong, and life lived inside it.'
+      prejudice_and_otherness:
+        label: Prejudice & Otherness
+        definition: 'Being categorized as other, and what the categorizing society does next.'
+      migration_and_exile:
+        label: Migration & Exile
+        definition: 'Leaving a homeland, and the self that does not arrive intact.'
 
   technology_and_humanity:
     label: Technology & Humanity
@@ -127,6 +148,12 @@ clusters:
       aging:
         label: Aging
         definition: 'Time acting on a body and a self.'
+      time_travel:
+        label: Time Travel
+        definition: 'Moving through time as an act, and the causality it strains.'
+      parallel_lives:
+        label: Parallel Lives
+        definition: 'The life not lived, made literal as another world or timeline.'
 
   family_and_kinship:
     label: Family & Kinship
@@ -271,9 +298,6 @@ clusters:
       censorship:
         label: Censorship
         definition: 'Suppression of expression.'
-      craft_and_mastery:
-        label: Craft & Mastery
-        definition: 'The long apprenticeship toward excellence.'
       storytelling_itself:
         label: Storytelling Itself
         definition: 'Work that examines its own form.'
@@ -331,9 +355,6 @@ clusters:
       genocide:
         label: Genocide
         definition: 'Extermination of a people.'
-      heroism:
-        label: Heroism
-        definition: 'Courage and its costs and myths.'
       complicity:
         label: Complicity
         definition: 'Participation by not refusing.'
@@ -365,3 +386,60 @@ clusters:
       leaving_home:
         label: Leaving Home
         definition: 'The departure that makes an adult.'
+      bullying_and_cruelty:
+        label: Bullying & Cruelty
+        definition: 'Peer cruelty as a formative force, for the one who inflicts it too.'
+
+  the_supernatural:
+    label: The Supernatural
+    themes:
+      magic_and_enchantment:
+        label: Magic & Enchantment
+        definition: 'A world where will can alter matter, and what that costs the willing.'
+      monsters_and_the_monstrous:
+        label: Monsters & the Monstrous
+        definition: 'The inhuman thing, and the question of who the actual monster is.'
+      hauntings:
+        label: Hauntings
+        definition: 'The past refusing to stay past, embodied and present.'
+      curses_and_the_occult:
+        label: Curses & the Occult
+        definition: 'Bargains with powers that keep their own terms.'
+      other_worlds:
+        label: Other Worlds
+        definition: 'A second reality reachable from this one, and the pull it exerts.'
+
+  heroism_and_power:
+    label: Heroism & Power
+    themes:
+      heroism:
+        label: Heroism
+        definition: 'Courage and its costs and myths.'
+      extraordinary_power:
+        label: Extraordinary Power
+        definition: 'Capability far beyond the ordinary, and the obligation people assume comes with it.'
+      vigilantism:
+        label: Vigilantism
+        definition: 'Taking enforcement into private hands when institutions will not act.'
+      secret_identity:
+        label: Secret Identity
+        definition: 'A concealed second life, and the strain of maintaining both.'
+      good_versus_evil:
+        label: Good Versus Evil
+        definition: 'Conflict framed as a cosmic moral binary rather than a human dispute.'
+
+  competition_and_mastery:
+    label: Competition & Mastery
+    themes:
+      craft_and_mastery:
+        label: Craft & Mastery
+        definition: 'The long apprenticeship toward excellence.'
+      rivalry:
+        label: Rivalry
+        definition: 'An opponent who defines you, and whom you define in turn.'
+      training_and_discipline:
+        label: Training & Discipline
+        definition: 'Deliberate self-subjection to a regimen in pursuit of capability.'
+      winning_and_losing:
+        label: Winning & Losing
+        definition: 'What a result does to a person once the contest is over.'
