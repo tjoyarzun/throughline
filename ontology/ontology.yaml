@@ -1,0 +1,356 @@
+# Throughline media ontology — THE SOURCE OF TRUTH.
+#
+# This file is a build input, not documentation. `pnpm codegen` compiles it into:
+#   1. src/lib/ontology/generated.ts      TS types, domain/range maps, weights, narration
+#   2. drizzle/generated/ontology.sql     CHECK constraints + core.assert_edge_valid()
+#   3. docs/ontology-reference.md         human-readable predicate table
+# CI fails if the committed artifacts differ from what this file produces.
+#
+# Expansion rule: a new predicate is justified only when (a) it cannot be an
+# attribute on an existing predicate, (b) a real query or UI surface needs it,
+# and (c) a data source can populate it for >20% of the corpus. Predicates that
+# fail (c) are curated-only and flagged sparse in the Universe UI.
+
+version: 1
+
+entity_types:
+  title:
+    table: core.title
+    label_field: title
+    image_field: poster_path
+    graph_node: true
+    public_page: true
+    subtypes:
+      discriminator: kind
+      values: [movie, show]
+  person:
+    table: core.person
+    label_field: name
+    image_field: profile_path
+    graph_node: true
+    public_page: true
+  character:
+    table: core.character
+    label_field: name
+    graph_node: true
+    public_page: false
+  concept:
+    table: core.concept
+    label_field: label
+    graph_node: true
+    public_page: true
+    subtypes:
+      discriminator: scheme
+      values: [genre, theme, mood, keyword, format]
+  collection:
+    table: core.collection
+    label_field: name
+    image_field: poster_path
+    graph_node: true
+    public_page: true
+  organization:
+    table: core.organization
+    label_field: name
+    image_field: logo_path
+    graph_node: true
+    public_page: false
+    subtypes:
+      discriminator: kind
+      values: [studio, network, distributor, streamer, production]
+  work:
+    table: core.work
+    label_field: title
+    graph_node: true
+    public_page: false
+    subtypes:
+      discriminator: kind
+      values: [book, comic, play, game, article, true_events, short_story]
+  # Parts: identity only within a parent. Addressable, not graph-explorable.
+  season:
+    table: core.season
+    label_field: name
+    graph_node: false
+    part_of: title
+  episode:
+    table: core.episode
+    label_field: name
+    graph_node: false
+    part_of: season
+
+concept_schemes:
+  genre:
+    curated: false
+    source: tmdb.genres
+    hierarchical: false
+  theme:
+    curated: true
+    source: core.crosswalk_keyword_theme
+    hierarchical: true
+    governance: Additions require an entry in docs/ontology.md#theme-changelog
+  mood:
+    curated: true
+    source: manual
+    hierarchical: false
+    phase: 2
+  keyword:
+    curated: false
+    source: tmdb.keywords
+    hierarchical: false
+    note: Raw folksonomy. Never surfaced in UI; exists only to feed the theme crosswalk.
+  format:
+    curated: true
+    source: manual
+    hierarchical: false
+    phase: 2
+
+# ---------------------------------------------------------------------------
+# Predicates. 20 of them. Principled, not exhaustive.
+#
+#   storage       core.credit | core.edge | core.edge_derived | structural
+#   path_weight   lower = more meaningful in a connection path. Genre is ~4.5
+#                 because "both are Drama" is true and useless.
+#   hub_exempt    true = never banned from intermediate path positions
+# ---------------------------------------------------------------------------
+predicates:
+  directed:
+    label: directed
+    inverse: directed_by
+    domain: [person]
+    range: [title, episode]
+    storage: core.credit
+    provenance: [asserted]
+    path_weight: 1.0
+    narration: '{subject} directed {object}'
+    narration_inverse: '{subject} was directed by {subject_of_inverse}'
+
+  acted_in:
+    label: acted in
+    inverse: features_actor
+    domain: [person]
+    range: [title, episode]
+    storage: core.credit
+    provenance: [asserted]
+    path_weight: 1.4
+    path_weight_expr: 'billing_order <= 3 ? 1.2 : 1.9'
+    attributes:
+      character_id: { type: uuid, nullable: true }
+      billing_order: { type: integer, nullable: true }
+    narration: '{subject} appeared in {object}'
+    narration_with_attributes: '{subject} played {attributes.character} in {object}'
+
+  wrote:
+    label: wrote
+    inverse: written_by
+    domain: [person]
+    range: [title, episode]
+    storage: core.credit
+    provenance: [asserted]
+    path_weight: 1.15
+    attributes:
+      writing_role: { type: enum, values: [screenplay, story, novel, teleplay, adaptation] }
+    narration: '{subject} wrote {object}'
+
+  composed_for:
+    label: composed the score for
+    inverse: scored_by
+    domain: [person]
+    range: [title]
+    storage: core.credit
+    provenance: [asserted]
+    path_weight: 1.6
+    narration: '{subject} composed the score for {object}'
+
+  shot:
+    label: was cinematographer on
+    inverse: shot_by
+    domain: [person]
+    range: [title]
+    storage: core.credit
+    provenance: [asserted]
+    path_weight: 1.6
+    narration: '{subject} was the cinematographer on {object}'
+
+  portrayed_by:
+    label: portrayed by
+    inverse: portrays
+    domain: [character]
+    range: [person]
+    storage: core.edge
+    provenance: [asserted, curated]
+    path_weight: 1.1
+    narration: '{subject} is portrayed by {object}'
+
+  features_character:
+    label: features
+    inverse: appears_in
+    domain: [title]
+    range: [character]
+    storage: core.edge
+    provenance: [asserted, curated]
+    path_weight: 1.3
+    narration: '{subject} features the character {object}'
+
+  belongs_to_genre:
+    label: genre
+    inverse: genre_of
+    domain: [title]
+    range: [concept:genre]
+    storage: core.edge
+    provenance: [asserted]
+    path_weight: 4.5
+    hub_exempt: false
+    excluded_from_path_intermediates: true
+    narration: '{subject} is a {object} film'
+
+  explores_theme:
+    label: explores
+    inverse: explored_by
+    domain: [title]
+    range: [concept:theme]
+    storage: core.edge
+    provenance: [curated, derived]
+    path_weight: 2.6
+    attributes:
+      salience: { type: number, min: 0, max: 1 }
+      derived_from: { type: string, nullable: true }
+    narration: '{subject} explores {object}'
+
+  broader_than:
+    label: broader than
+    inverse: narrower_than
+    domain: [concept]
+    range: [concept]
+    storage: core.edge
+    provenance: [curated]
+    path_weight: 2.0
+    narration: '{subject} is a broader concept than {object}'
+
+  part_of_franchise:
+    label: part of
+    inverse: includes
+    domain: [title]
+    range: [collection]
+    storage: core.edge
+    provenance: [asserted, curated]
+    path_weight: 1.1
+    narration: '{subject} is part of {object}'
+
+  based_on:
+    label: based on
+    inverse: adapted_as
+    domain: [title]
+    range: [work]
+    storage: core.edge
+    provenance: [asserted, curated]
+    path_weight: 1.2
+    narration: '{subject} is based on {object}'
+
+  sequel_to:
+    label: sequel to
+    inverse: followed_by
+    domain: [title]
+    range: [title]
+    storage: core.edge
+    provenance: [curated]
+    path_weight: 1.0
+    narration: '{subject} is a sequel to {object}'
+
+  remake_of:
+    label: remake of
+    inverse: remade_as
+    domain: [title]
+    range: [title]
+    storage: core.edge
+    provenance: [curated]
+    path_weight: 1.2
+    narration: '{subject} is a remake of {object}'
+
+  influenced_by:
+    label: influenced by
+    inverse: influenced
+    domain: [title, person]
+    range: [title, person]
+    storage: core.edge
+    provenance: [curated]
+    path_weight: 1.5
+    sparse: true
+    narration: '{subject} was influenced by {object}'
+
+  similar_to:
+    label: similar to
+    inverse: similar_to
+    domain: [title]
+    range: [title]
+    storage: core.edge_derived
+    provenance: [derived]
+    symmetric: true
+    path_weight: 2.2
+    attributes:
+      score: { type: number, min: 0, max: 1 }
+      method: { type: string }
+    narration: '{subject} is similar to {object}'
+
+  produced_by:
+    label: produced by
+    inverse: produced
+    domain: [title]
+    range: [organization:studio, organization:production]
+    storage: core.edge
+    provenance: [asserted]
+    path_weight: 3.8
+    narration: '{subject} was produced by {object}'
+
+  distributed_by:
+    label: distributed by
+    inverse: distributed
+    domain: [title]
+    range: [organization:distributor]
+    storage: core.edge
+    provenance: [asserted]
+    path_weight: 4.2
+    narration: '{subject} was distributed by {object}'
+
+  aired_on:
+    label: aired on
+    inverse: aired
+    domain: [title]
+    range: [organization:network]
+    storage: core.edge
+    provenance: [asserted]
+    path_weight: 3.5
+    narration: '{subject} aired on {object}'
+
+  # Structural composition. Excluded from sem.edge entirely: including these would
+  # let the path finder emit useless routes like "Arrival -> Drama -> some episode".
+  season_of:
+    label: season of
+    inverse: has_season
+    domain: [season]
+    range: [title]
+    storage: structural
+    provenance: [asserted]
+    structural: true
+    narration: '{subject} is a season of {object}'
+
+  episode_of:
+    label: episode of
+    inverse: has_episode
+    domain: [episode]
+    range: [season]
+    storage: structural
+    provenance: [asserted]
+    structural: true
+    narration: '{subject} is an episode of {object}'
+
+# ---------------------------------------------------------------------------
+# Path ranking. See docs/graph.md and src/lib/graph/.
+# Naive BFS returns "both are Drama" every time; ranking is the real work.
+# ---------------------------------------------------------------------------
+path_ranking:
+  max_depth_per_side: 3
+  frontier_cap: 4000
+  hub_degree_ban: 2000
+  hub_penalty_coefficient: 0.45
+  max_paths_returned: 3
+  diversity_max_overlap: 0.5
+  cache_ttl_days: 7

@@ -1,0 +1,367 @@
+# Throughline curated theme vocabulary — v1 DRAFT.
+#
+# STATUS: drafted 2026-09-20, AWAITING EDITORIAL REVIEW (see docs/ontology.md
+# #theme-changelog). This is Tommy's editorial position, not a provider's data.
+# Budget ~2 hours to review before Phase 2 derives edges at corpus scale.
+#
+# WHY THIS EXISTS: TMDB "keywords" are a ~40k-term folksonomy mixing settings
+# ("new york city"), objects ("robot"), plot devices ("time loop"), and tone
+# ("dystopia"). A serious ontology does not adopt a folksonomy wholesale. These
+# themes are mapped FROM keywords via core.crosswalk_keyword_theme; most keywords
+# map to zero themes, which is correct — a setting is not a theme.
+#
+# Hierarchy is two levels: cluster -> theme. Deeper nesting has not earned itself.
+
+version: 1
+scheme: theme
+
+clusters:
+  identity_and_self:
+    label: Identity & Self
+    themes:
+      alienation:
+        label: Alienation
+        definition: 'Estrangement from a society one nominally belongs to.'
+      artificial_personhood:
+        label: Artificial Personhood
+        definition: 'Whether a made mind counts as a person.'
+      duality:
+        label: Duality
+        definition: 'Two natures contending inside one figure.'
+      impostor_identity:
+        label: Impostor Identity
+        definition: 'Living convincingly as someone one is not.'
+      self_invention:
+        label: Self-Invention
+        definition: 'Deliberately remaking who one is.'
+      body_and_transformation:
+        label: Body & Transformation
+        definition: 'Identity altered through physical change.'
+      loneliness:
+        label: Loneliness
+        definition: 'Isolation as a sustained condition rather than an event.'
+      purpose_and_vocation:
+        label: Purpose & Vocation
+        definition: 'The search for work worth doing.'
+
+  power_and_politics:
+    label: Power & Politics
+    themes:
+      authoritarianism:
+        label: Authoritarianism
+        definition: 'Concentrated power and the machinery that sustains it.'
+      bureaucracy:
+        label: Bureaucracy
+        definition: "Systems that grind independent of anyone's intent."
+      corruption:
+        label: Corruption
+        definition: 'Institutions turned to private ends.'
+      resistance:
+        label: Resistance
+        definition: 'Organized refusal against a dominant power.'
+      surveillance:
+        label: Surveillance
+        definition: 'Being watched, and what that does to conduct.'
+      propaganda:
+        label: Propaganda
+        definition: 'Engineered consent and manufactured belief.'
+      colonialism:
+        label: Colonialism
+        definition: 'Domination of a people and the long aftermath.'
+      leadership_and_its_cost:
+        label: Leadership & Its Cost
+        definition: 'What command extracts from the one who holds it.'
+
+  technology_and_humanity:
+    label: Technology & Humanity
+    themes:
+      artificial_intelligence:
+        label: Artificial Intelligence
+        definition: 'Thinking machines and what they reveal about us.'
+      technological_hubris:
+        label: Technological Hubris
+        definition: 'Capability outrunning wisdom.'
+      simulation_and_reality:
+        label: Simulation & Reality
+        definition: 'Uncertainty about which layer is real.'
+      transhumanism:
+        label: Transhumanism
+        definition: 'Engineering beyond the human baseline.'
+      automation_and_labor:
+        label: Automation & Labor
+        definition: 'Machines displacing human work and worth.'
+      information_and_truth:
+        label: Information & Truth
+        definition: 'Contested facts in a saturated information field.'
+      space_exploration:
+        label: Space Exploration
+        definition: 'Reaching outward and what it costs.'
+      genetic_engineering:
+        label: Genetic Engineering
+        definition: 'Deliberate editing of life itself, and who gets to decide.'
+
+  memory_and_time:
+    label: Memory & Time
+    themes:
+      memory:
+        label: Memory
+        definition: 'What is retained, lost, or fabricated.'
+      grief:
+        label: Grief
+        definition: 'Living in the shape left by a loss.'
+      nostalgia:
+        label: Nostalgia
+        definition: 'Longing for a past that may not have existed.'
+      fate_and_determinism:
+        label: Fate & Determinism
+        definition: 'Whether the outcome was ever open.'
+      nonlinear_time:
+        label: Nonlinear Time
+        definition: 'Time experienced out of sequence.'
+      legacy:
+        label: Legacy
+        definition: 'What outlasts a person and whether it resembles them.'
+      regret:
+        label: Regret
+        definition: 'The road not taken, examined.'
+      aging:
+        label: Aging
+        definition: 'Time acting on a body and a self.'
+
+  family_and_kinship:
+    label: Family & Kinship
+    themes:
+      parenthood:
+        label: Parenthood
+        definition: 'The asymmetric obligation of raising someone.'
+      inheritance:
+        label: Inheritance
+        definition: 'What passes down, wanted or not.'
+      sibling_rivalry:
+        label: Sibling Rivalry
+        definition: 'Love and competition in the same bond.'
+      chosen_family:
+        label: Chosen Family
+        definition: 'Kinship built rather than inherited.'
+      estrangement:
+        label: Estrangement
+        definition: 'The deliberate severing of family ties.'
+      generational_conflict:
+        label: Generational Conflict
+        definition: 'Incompatible worlds inside one bloodline.'
+      caregiving:
+        label: Caregiving
+        definition: 'The labor of tending to someone who cannot tend to themselves.'
+
+  faith_and_meaning:
+    label: Faith & Meaning
+    themes:
+      existentialism:
+        label: Existentialism
+        definition: 'Meaning as something made, not found.'
+      religion_and_doubt:
+        label: Religion & Doubt
+        definition: 'Belief under pressure.'
+      mortality:
+        label: Mortality
+        definition: 'Living with a known ending.'
+      redemption:
+        label: Redemption
+        definition: 'Whether a person can be made whole after wrong.'
+      sacrifice:
+        label: Sacrifice
+        definition: 'Giving up something irreplaceable for something larger.'
+      nihilism:
+        label: Nihilism
+        definition: 'The claim that none of it signifies.'
+      transcendence:
+        label: Transcendence
+        definition: 'Contact with something beyond the ordinary frame.'
+
+  crime_and_justice:
+    label: Crime & Justice
+    themes:
+      revenge:
+        label: Revenge
+        definition: 'Private justice and its recoil.'
+      guilt:
+        label: Guilt
+        definition: 'Culpability carried internally.'
+      wrongful_accusation:
+        label: Wrongful Accusation
+        definition: 'Punishment aimed at the wrong person.'
+      organized_crime:
+        label: Organized Crime
+        definition: 'Criminality as an institution with its own order.'
+      moral_ambiguity:
+        label: Moral Ambiguity
+        definition: 'Situations with no clean party.'
+      the_law_versus_justice:
+        label: The Law vs. Justice
+        definition: 'When the rules and the right diverge.'
+      investigation:
+        label: Investigation
+        definition: 'The pursuit of a concealed truth.'
+      punishment_and_mercy:
+        label: Punishment & Mercy
+        definition: 'What a wrong is owed.'
+
+  love_and_desire:
+    label: Love & Desire
+    themes:
+      unrequited_love:
+        label: Unrequited Love
+        definition: 'Devotion that is not returned.'
+      marriage:
+        label: Marriage
+        definition: 'The long institution of partnership.'
+      infidelity:
+        label: Infidelity
+        definition: 'Trust broken inside intimacy.'
+      obsession:
+        label: Obsession
+        definition: 'Desire that overrides judgment.'
+      friendship:
+        label: Friendship
+        definition: 'Non-romantic bonds under strain.'
+      forbidden_love:
+        label: Forbidden Love
+        definition: 'Attachment a society refuses to permit.'
+      loss_of_a_partner:
+        label: Loss of a Partner
+        definition: 'Continuing after the other is gone.'
+
+  survival:
+    label: Survival
+    themes:
+      isolation_survival:
+        label: Isolation Survival
+        definition: 'Endurance alone and cut off.'
+      apocalypse:
+        label: Apocalypse
+        definition: 'The ending of a world and what follows.'
+      captivity:
+        label: Captivity
+        definition: 'Confinement and the mind under it.'
+      escape:
+        label: Escape
+        definition: 'The engineered exit from an inescapable place.'
+      endurance:
+        label: Endurance
+        definition: 'Continuation past the point of reasonable continuation.'
+      disaster:
+        label: Disaster
+        definition: 'Sudden catastrophe and human response to it.'
+      resourcefulness:
+        label: Resourcefulness
+        definition: 'Improvisation as the difference between living and not.'
+
+  art_and_creation:
+    label: Art & Creation
+    themes:
+      artistic_obsession:
+        label: Artistic Obsession
+        definition: 'The work consuming the maker.'
+      performance:
+        label: Performance
+        definition: 'The self assembled for an audience.'
+      fame:
+        label: Fame
+        definition: 'Being known, and the distortion it causes.'
+      censorship:
+        label: Censorship
+        definition: 'Suppression of expression.'
+      craft_and_mastery:
+        label: Craft & Mastery
+        definition: 'The long apprenticeship toward excellence.'
+      storytelling_itself:
+        label: Storytelling Itself
+        definition: 'Work that examines its own form.'
+
+  nature_and_environment:
+    label: Nature & Environment
+    themes:
+      wilderness:
+        label: Wilderness
+        definition: 'The nonhuman world as force and setting.'
+      climate_and_collapse:
+        label: Climate & Collapse
+        definition: 'Environmental breakdown and its politics.'
+      animals_and_humans:
+        label: Animals & Humans
+        definition: 'The boundary and bond between species.'
+      land_and_belonging:
+        label: Land & Belonging
+        definition: 'Place as identity, and the claim a landscape makes on people.'
+      exploitation_of_nature:
+        label: Exploitation of Nature
+        definition: 'Extraction and its consequences.'
+
+  class_and_money:
+    label: Class & Money
+    themes:
+      poverty:
+        label: Poverty
+        definition: 'Scarcity as the governing condition.'
+      greed:
+        label: Greed
+        definition: 'Accumulation past any use.'
+      social_mobility:
+        label: Social Mobility
+        definition: 'Movement between strata, up or down.'
+      labor_and_exploitation:
+        label: Labor & Exploitation
+        definition: 'Work extracted unfairly.'
+      wealth_and_isolation:
+        label: Wealth & Isolation
+        definition: 'Affluence as a form of separation.'
+      the_american_dream:
+        label: The American Dream
+        definition: 'The promise of advancement, tested.'
+
+  war_and_violence:
+    label: War & Violence
+    themes:
+      war:
+        label: War
+        definition: 'Organized armed conflict.'
+      trauma:
+        label: Trauma
+        definition: 'Injury that persists after the event.'
+      genocide:
+        label: Genocide
+        definition: 'Extermination of a people.'
+      heroism:
+        label: Heroism
+        definition: 'Courage and its costs and myths.'
+      complicity:
+        label: Complicity
+        definition: 'Participation by not refusing.'
+      cycle_of_violence:
+        label: Cycle of Violence
+        definition: 'Harm reproducing itself across time.'
+      aftermath:
+        label: Aftermath
+        definition: 'The long tail of conflict on ordinary life.'
+
+  coming_of_age:
+    label: Coming of Age
+    themes:
+      loss_of_innocence:
+        label: Loss of Innocence
+        definition: 'The end of an unexamined world.'
+      first_love:
+        label: First Love
+        definition: 'Formative early attachment.'
+      rebellion:
+        label: Rebellion
+        definition: 'Refusal of inherited authority.'
+      belonging:
+        label: Belonging
+        definition: 'The search for a group that fits.'
+      mentorship:
+        label: Mentorship
+        definition: "Formation through another's guidance."
+      leaving_home:
+        label: Leaving Home
+        definition: 'The departure that makes an adult.'

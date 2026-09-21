@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The ontology is the source of truth. If the committed artifacts differ
+      # from what it produces, the database and the model have drifted.
+      - name: Codegen drift
+        run: pnpm codegen && git diff --exit-code
+
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Format
+        run: pnpm format:check
+
+      # cspell cannot catch this: "colour" is a valid dictionary word.
+      - name: Locale (en-US)
+        run: pnpm check-locale
+      - name: Spelling
+        run: pnpm check-spelling
+
+      - name: Layer boundary (sem.* only)
+        run: pnpm check-layers
+
+      - name: Tests
+        run: pnpm test
+
+      # No secret should ever be exposed to the client bundle.
+      - name: No public secrets
+        run: |
+          if grep -rInE 'NEXT_PUBLIC_[A-Z_]*(KEY|SECRET|TOKEN)' src ontology scripts 2>/dev/null; then
+            echo "::error::A secret-looking variable is exposed as NEXT_PUBLIC_"; exit 1
+          fi
+          echo "ok"
+
+      - name: Build
+        run: pnpm build
+
+  guards:
+    # The checks must fail when they should. A green check that cannot go red is theater.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: check-locale rejects the violation fixture
+        run: |
+          if bash scripts/check-locale.sh tests/fixtures/locale-violation.md; then
+            echo "::error::check-locale passed a file full of British spellings"; exit 1
+          fi
+          echo "ok — check-locale correctly failed"

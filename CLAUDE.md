@@ -1,0 +1,117 @@
+# Throughline — agent context
+
+A mobile-first PWA for tracking movies and TV, built on an explicit media ontology and a SQL
+semantic layer. Two faces: a fast cinematic tracker (search → status → rate → share), and **The
+Universe**, an ontology exploration surface whose headline capability is answering _"why are these
+two things connected?"_ with ranked, narrated paths through a knowledge graph.
+
+Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
+
+## Current phase: 1 — Canonical data model
+
+Phase 0 (foundation) is complete: ontology compiles, tokens tested, app shell renders, CI green.
+**Do not build features from later phases.** Phase 1 is schemas, views, RLS, and generated
+constraints — no UI beyond what already exists. The phase plan is in [docs/development-plan.md](docs/development-plan.md).
+
+## Read before you work
+
+| Doing this                | Read first                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Anything touching data    | [architecture.md](docs/architecture.md) → [ontology.md](docs/ontology.md) → [data-model.md](docs/data-model.md) |
+| Anything touching queries | [semantic-layer.md](docs/semantic-layer.md)                                                                     |
+| Anything touching UI      | [ui.md](docs/ui.md)                                                                                             |
+| Graph or path finding     | [graph.md](docs/graph.md)                                                                                       |
+| Auth, RLS, secrets        | [security.md](docs/security.md)                                                                                 |
+
+## The seven commitments
+
+These are decided. Do not relitigate them without writing an ADR.
+
+1. **One Postgres, no graph database.** ~260k edges at target corpus; the user layer must join to
+   the graph. [ADR 0003](docs/adr/0003-no-graph-database.md)
+2. **`ontology/ontology.yaml` is the single source of truth.** TS types, Zod schemas, DB CHECK
+   constraints, path weights, and narration are _generated_ from it.
+3. **Four schemas: `raw` → `core` → `sem` → `usr`.** Application code queries **`sem.*` only**.
+4. **Person is an entity; Actor/Director/Writer are roles** realized as predicates. [ADR 0002](docs/adr/0002-person-entity-roles-as-predicates.md)
+5. **Three provenance tiers: `asserted` / `curated` / `derived`.** Derived edges live in a separately
+   truncatable table.
+6. **Path ranking is hub-penalized and predicate-weighted.** Naive BFS returns "both are Drama".
+7. **Volatile facts are not ontology.** Availability has its own table with validity windows. [ADR 0007](docs/adr/0007-availability-is-not-ontology.md)
+
+## Hard rules
+
+- **Query `sem.*` only** from `src/app`, `src/components`, `src/actions`. Never `core.*`, never
+  `raw.*`, never a provider directly. Go through `src/server/repos/`. Enforced by ESLint and
+  `scripts/check-layers.sh`.
+- **Never add a predicate** without editing `ontology/ontology.yaml` and running `pnpm codegen`.
+- **Never hand-edit** `src/lib/ontology/generated.ts`, `drizzle/generated/**`, or
+  `docs/ontology-reference.md`. They are build output and CI compares them.
+- **All `usr.*` access goes through `withUser(accountId, …)`** — an explicit transaction on the
+  pooled connection. Neon's HTTP driver runs each query in its own implicit transaction, so
+  `SET LOCAL app.account_id` silently evaporates and RLS returns zero rows. [security.md](docs/security.md)
+- **Every repository function touching user data takes `accountId` as its first parameter.** Never
+  read it from ambient context.
+- **A zero-row read where a row was asserted to exist is a bug, not an empty state.** Throw.
+- **The graph library is dynamically imported on `/universe/*` only.** It must never enter the
+  shared bundle.
+- **TMDB images never go through the Next image optimizer.** [ADR 0012](docs/adr/0012-tmdb-images-bypass-next-optimizer.md)
+- **New user-facing metric → `ontology/metrics.yaml`**, not SQL in a component.
+- **American English (en-US)** in all copy, docs, comments, commit messages, and identifiers we
+  author. Enforced by `scripts/check-locale.sh` + cspell in CI and pre-commit. Exceptions (provider
+  field names, quoted material, proper nouns) go in `.localeignore` with a reason. Do not
+  relitigate. [ADR 0013](docs/adr/0013-en-us-locale-enforcement.md)
+- **The Domo design playbook does not apply here.** This is a personal project with its own visual
+  identity ([ui.md](docs/ui.md)). Do not push the palette toward Domo brand colors.
+
+## Commands
+
+```bash
+pnpm dev              # dev server
+pnpm codegen          # ontology.yaml -> types, SQL constraints, reference docs
+pnpm verify           # codegen drift + typecheck + lint + locale + spelling + tests
+pnpm test             # vitest (unit + ontology conformance)
+pnpm check-locale     # en-US denylist
+pnpm check-layers     # sem-only boundary
+pnpm check-env        # env parity with .env.example
+```
+
+`pnpm verify` is what CI runs. Run it before you claim something works.
+
+## ADR index
+
+| #                                                             | Decision                                                       |
+| ------------------------------------------------------------- | -------------------------------------------------------------- |
+| [0001](docs/adr/0001-postgres-four-schema-separation.md)      | Four-schema separation: raw / core / sem / usr                 |
+| [0002](docs/adr/0002-person-entity-roles-as-predicates.md)    | Person is an entity; roles are predicates                      |
+| [0003](docs/adr/0003-no-graph-database.md)                    | No graph database; Postgres with a swappable engine interface  |
+| [0004](docs/adr/0004-credit-table-vs-generic-edge.md)         | Hybrid edge storage: typed `core.credit` + generic `core.edge` |
+| [0005](docs/adr/0005-favorites-as-relationship-not-status.md) | Favorites is an orthogonal relationship, not a status          |
+| [0006](docs/adr/0006-tmdb-spine-wikidata-enrichment.md)       | TMDB as spine, Wikidata as ontology enricher                   |
+| [0007](docs/adr/0007-availability-is-not-ontology.md)         | Streaming availability is not an ontology edge                 |
+| [0008](docs/adr/0008-share-snapshot-not-live.md)              | Shares snapshot rating and note at creation                    |
+| [0009](docs/adr/0009-better-auth.md)                          | Better Auth over Auth.js v5 and Clerk                          |
+| [0010](docs/adr/0010-hub-penalized-path-ranking.md)           | Hub-penalized, diversity-filtered path ranking                 |
+| [0011](docs/adr/0011-job-table-over-queue-service.md)         | A `core.job` table and cron drain, not a queue vendor          |
+| [0012](docs/adr/0012-tmdb-images-bypass-next-optimizer.md)    | TMDB images bypass the Next image optimizer                    |
+| [0013](docs/adr/0013-en-us-locale-enforcement.md)             | en-US enforced by a denylist, not by convention                |
+
+Small choices too minor for an ADR but annoying to rediscover live in
+[docs/decisions-log.md](docs/decisions-log.md). Add to it freely.
+
+## Conventions
+
+- One phase per branch, one PR per phase; the PR body restates the phase definition of done.
+- Architectural choices made during implementation get an ADR **before** the code merges.
+- Generated artifacts are committed and CI-verified — a session cannot drift the ontology from the
+  database without failing the build.
+- Docs updates are part of each phase's definition of done, not a follow-up.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

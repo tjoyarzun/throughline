@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    locale:
+      run: bash scripts/check-locale.sh
+    layers:
+      run: bash scripts/check-layers.sh
+    format:
+      glob: '*.{ts,tsx,md,css,json,yaml,yml}'
+      run: pnpm prettier --check {staged_files}
+pre-push:
+  commands:
+    verify:
+      run: pnpm codegen && git diff --exit-code && pnpm typecheck && pnpm lint && pnpm test

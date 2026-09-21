@@ -1,0 +1,15 @@
+# Regex patterns (grep -E) exempted from scripts/check-locale.sh.
+# Each entry must say WHY. See docs/adr/0013-en-us-locale-enforcement.md.
+
+# ADR 0013 documents the denylist itself and quotes British spellings as
+# examples. Exempting the file, not the words — the examples are the content.
+^docs/adr/0013-en-us-locale-enforcement\.md:
+
+# docs/ui.md and decisions-log.md reference the corrected spellings by name when
+# explaining what was fixed. Quoted material, same rationale.
+^docs/decisions-log\.md:.*(colour|normalisation|centred|materialised|behaviour|labelled)
+
+# Provider field names and quoted third-party data keep their original spelling —
+# renaming a provider field breaks the contract with that API. Add them here as
+# they appear during Phase 2 ingest work, e.g.:
+# ^src/server/providers/tmdb/.*"colour"    # hypothetical TMDB field, kept verbatim

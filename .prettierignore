@@ -1,0 +1,6 @@
+.next
+node_modules
+pnpm-lock.yaml
+src/lib/ontology/generated.ts
+drizzle/generated
+docs/ontology-reference.md

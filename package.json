@@ -1,0 +1,50 @@
+{
+  "name": "throughline",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "codegen": "tsx ontology/codegen.ts",
+    "check-locale": "bash scripts/check-locale.sh",
+    "check-spelling": "cspell --no-progress --no-summary \"**/*.{ts,tsx,md,yaml,yml,css}\"",
+    "check-env": "tsx scripts/check-env.ts",
+    "verify": "pnpm codegen && git diff --exit-code && pnpm typecheck && pnpm lint && pnpm check-locale && pnpm check-spelling && pnpm check-layers && pnpm test",
+    "check-layers": "bash scripts/check-layers.sh"
+  },
+  "dependencies": {
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "cspell": "^10.3.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.3.5",
+    "lefthook": "^2.1.14",
+    "prettier": "^3.9.8",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1",
+    "yaml": "^2.9.1"
+  }
+}

@@ -1,0 +1,7 @@
+# pnpm 11: build-script approval lives here as `allowBuilds`, even with no workspace.
+# `pnpm.onlyBuiltDependencies` in package.json is silently ignored — see
+# ~/personal/projects/claude-code-starter-kit/template/agent-docs/pnpm-build-scripts.md
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  unrs-resolver: true

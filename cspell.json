@@ -1,0 +1,33 @@
+{
+  "version": "0.2",
+  "language": "en,en-US",
+  "ignorePaths": [
+    "node_modules/**",
+    ".next/**",
+    "pnpm-lock.yaml",
+    "tests/fixtures/locale-*",
+    "scripts/check-locale.sh",
+    ".localeignore",
+    "src/lib/ontology/generated.ts",
+    "drizzle/generated/**",
+    "docs/ontology-reference.md",
+    "docs/adr/0013-en-us-locale-enforcement.md"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "throughline",
+      "path": "./project-words.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": [
+    "throughline",
+    "typescript",
+    "node",
+    "softwareTerms",
+    "css",
+    "html",
+    "bash",
+    "sql"
+  ]
+}
