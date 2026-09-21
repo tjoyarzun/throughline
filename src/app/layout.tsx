@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { BottomNav } from '@/components/ui/bottom-nav';
 import '@/styles/globals.css';
 
 export const metadata: Metadata = {
@@ -20,6 +19,11 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Root layout holds only the document and the skip link. The app shell lives in
+ * the (app) route group and auth pages in (auth), so neither inherits chrome
+ * meant for the other.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-US">
@@ -31,10 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        <main id="main" className="mx-auto min-h-dvh w-full max-w-3xl px-4 pb-28 pt-4">
-          {children}
-        </main>
-        <BottomNav />
+        {children}
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 /**
  * Email OTP sign-in.
@@ -43,6 +44,7 @@ async function explain(res: Response): Promise<string> {
 }
 
 export function SignInForm({ next }: { next: string }) {
+  const router = useRouter();
   const [stage, setStage] = useState<Stage>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -87,7 +89,11 @@ export function SignInForm({ next }: { next: string }) {
         body: JSON.stringify({ email, otp: code }),
       });
       if (!res.ok) throw new Error(await explain(res));
-      window.location.href = next;
+      // refresh() before push() so server components re-read the session
+      // cookie; without it the destination can render from a cached payload
+      // produced while signed out.
+      router.refresh();
+      router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

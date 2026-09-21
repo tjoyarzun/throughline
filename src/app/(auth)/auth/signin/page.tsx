@@ -9,7 +9,7 @@ export default async function SignInPage({
 }) {
   const { next } = await searchParams;
   return (
-    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-8 py-16">
+    <div className="flex flex-col gap-8 py-10">
       <header className="flex flex-col gap-2">
         <h1 className="text-4xl">Throughline</h1>
         <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>

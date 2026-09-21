@@ -115,3 +115,22 @@ jobs:
             echo "::error::check-locale passed a file full of British spellings"; exit 1
           fi
           echo "ok — check-locale correctly failed"
+
+  e2e:
+    # Layout and geometry bugs are invisible to typechecking, linting and the
+    # unit suites. A page that is 128px taller than the viewport, and the
+    # overscroll banding that follows, needs a real browser to see. WebKit is
+    # included because the app is phone-first and Safari is the actual target.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: End-to-end
+        run: pnpm e2e
+        env:
+          BETTER_AUTH_SECRET: ci-only-not-a-real-secret-ci-only-not-real
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000

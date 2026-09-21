@@ -24,8 +24,6 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  // Auth and public share pages are not part of the app shell.
-  if (pathname.startsWith('/auth/') || pathname.startsWith('/s/')) return null;
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
   return (

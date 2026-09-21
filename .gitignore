@@ -16,3 +16,6 @@ test-results/
 playwright-report/
 .vercel
 .vitest/
+/playwright-report/
+/test-results/
+/blob-report/

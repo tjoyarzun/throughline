@@ -75,12 +75,20 @@
 
 html {
   background: var(--tl-bg);
+  /*
+   * Rubber-band overscroll on macOS reveals the browser canvas behind the
+   * page, which is a different color from --tl-bg and reads as stray dark
+   * bands above and below the content. Containing it keeps the page's own
+   * background edge to edge.
+   */
+  overscroll-behavior: none;
   /* Bottom nav must never obscure a focused element (WCAG 2.2 SC 2.4.11). */
   scroll-padding-bottom: calc(56px + env(safe-area-inset-bottom) + 8px);
 }
 
 body {
   background: var(--tl-bg);
+  min-height: 100dvh;
   color: var(--tl-text);
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
