@@ -29,6 +29,7 @@
     "invite": "tsx scripts/invite.ts",
     "lint": "eslint .",
     "seed": "tsx scripts/seed.ts",
+    "seed:prod-queue": "tsx scripts/seed-production-queue.ts",
     "seed:production": "bash scripts/seed-production.sh",
     "start": "next start",
     "test": "vitest run",

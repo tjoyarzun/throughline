@@ -94,3 +94,38 @@ export async function runMaintenanceJob(
     await sql.end();
   }
 }
+
+/**
+ * Enqueues hydrate_title jobs for a batch of TMDB ids.
+ *
+ * Production cannot be seeded from a developer machine — Vercel keeps the
+ * connection string write-only, correctly — so seeding runs through the queue
+ * instead. That is a better design regardless: resumable after any failure,
+ * and it exercises the queue at real scale rather than on five test rows.
+ *
+ * enqueue_job dedupes on (kind, payload) while a job is still pending, so
+ * resending a batch after a timeout costs nothing.
+ */
+export async function enqueueTitles(
+  databaseUrl: string,
+  titles: { tmdbId: number; kind: string }[],
+): Promise<{ enqueued: number; queue_depth: number }> {
+  const sql = postgres(databaseUrl, { max: 2, prepare: false, onnotice: () => {} });
+  try {
+    let enqueued = 0;
+    for (const t of titles) {
+      if (!Number.isFinite(t.tmdbId)) continue;
+      await sql`SELECT core.enqueue_job('hydrate_title',
+                  ${sql.json({
+                    tmdbId: t.tmdbId,
+                    kind: t.kind === 'show' ? 'show' : 'movie',
+                  } as never)})`;
+      enqueued++;
+    }
+    const [depth] = await sql<{ queued: number }[]>`
+      SELECT count(*)::int AS queued FROM core.job WHERE status = 'queued'`;
+    return { enqueued, queue_depth: depth?.queued ?? 0 };
+  } finally {
+    await sql.end();
+  }
+}
