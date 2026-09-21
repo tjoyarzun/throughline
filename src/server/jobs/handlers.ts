@@ -1,5 +1,6 @@
 import type { Sql } from '../ingest/resolve';
 import { deriveThemes } from '../ingest/derive-themes';
+import { enrichWikidata } from '../ingest/enrich-wikidata';
 import { Ingestor } from '../ingest/ingest';
 import { TmdbClient } from '../providers/tmdb/client';
 
@@ -25,6 +26,12 @@ const captureRaw =
               DO UPDATE SET payload = excluded.payload, fetched_at = now()`;
   };
 
+/**
+ * Titles per enrich_wikidata job: four SPARQL batches. Sized to finish well
+ * inside a function's wall clock, since exceeding it loses the whole window.
+ */
+const WIKIDATA_TITLES_PER_JOB = 240;
+
 export const HANDLERS: Record<string, Handler> = {
   /** Fetch a title's full record and write it to core. The lazy-ingest path. */
   hydrate_title: async (sql, payload) => {
@@ -48,6 +55,28 @@ export const HANDLERS: Record<string, Handler> = {
    */
   derive_themes: async (sql) => {
     await deriveThemes(sql);
+  },
+
+  /**
+   * Pull the relationships TMDB does not model -- adaptation sources,
+   * franchise membership, influence -- from Wikidata.
+   *
+   * CHUNKED AND SELF-CHAINING. A full pass is ~83 SPARQL round trips against a
+   * shared public endpoint, far beyond one function's budget, so each run
+   * handles a window and enqueues the next. Enqueue it once with no payload
+   * and the queue walks the whole corpus.
+   *
+   * It enqueues its successor with raw SQL rather than the enqueue helper
+   * because that helper imports this module -- going through it would make the
+   * cycle real.
+   */
+  enrich_wikidata: async (sql, payload) => {
+    const offset = Number(payload.offset ?? 0);
+    const result = await enrichWikidata(sql, { offset, maxTitles: WIKIDATA_TITLES_PER_JOB });
+    if (result.nextOffset !== null) {
+      await sql`SELECT core.enqueue_job('enrich_wikidata',
+                  ${sql.json({ offset: result.nextOffset } as never)})`;
+    }
   },
 
   /** Nightly. Node degree drives the hub penalty in path ranking. */
