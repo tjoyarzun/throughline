@@ -1,19 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import postgres from 'postgres';
-import { redeemInvite } from '@/server/auth/invite';
+import { reserveInvite, redeemInvite } from '@/server/auth/invite';
 
 /**
- * Invite-only sign-up.
+ * Invite-only sign-up, against the REAL functions rather than a
+ * reimplementation of their queries. An earlier version of this file
+ * reimplemented them correctly while the shipped code was racy, so every test
+ * passed and the bug went out.
  *
- * These import the REAL redeemInvite rather than reimplementing its query. The
- * first version of this file reimplemented it correctly while the production
- * code was racy — so every test passed and the bug shipped. A test that does
- * not exercise the shipped code is worse than no test, because it buys
- * confidence it has not earned.
+ * The split between reserve and redeem exists because consuming the invite
+ * when the code is SENT stranded the first real user: the account is not
+ * created until the code is verified, so an unverified send burned the invite
+ * and left no account behind.
  */
 const URL = process.env.DATABASE_URL;
 const run = URL ? describe : describe.skip;
 let sql: ReturnType<typeof postgres>;
+
+const open = (code: string) =>
+  sql`INSERT INTO usr.invite (code, expires_at) VALUES (${code}, now() + interval '7 days')`;
 
 run('invite gate', () => {
   beforeAll(() => {
@@ -27,50 +32,75 @@ run('invite gate', () => {
     await sql`DELETE FROM usr.invite WHERE code LIKE 'GATE-%'`;
   });
 
-  it('a valid unredeemed invite is accepted', async () => {
-    await sql`INSERT INTO usr.invite (code, expires_at)
-              VALUES ('GATE-OK', now() + interval '7 days')`;
-    expect(await redeemInvite(sql, 'GATE-OK', 'a@test.local')).toBe(true);
+  it('reserving a valid invite succeeds', async () => {
+    await open('GATE-OK');
+    expect(await reserveInvite(sql, 'GATE-OK', 'a@test.local')).toBe(true);
   });
 
-  it('an unknown code is refused', async () => {
-    expect(await redeemInvite(sql, 'GATE-NOPE', 'a@test.local')).toBe(false);
-  });
-
-  it('an expired invite is refused', async () => {
+  it('an unknown or expired code is refused', async () => {
+    expect(await reserveInvite(sql, 'GATE-NOPE', 'a@test.local')).toBe(false);
     await sql`INSERT INTO usr.invite (code, expires_at)
               VALUES ('GATE-OLD', now() - interval '1 day')`;
-    expect(await redeemInvite(sql, 'GATE-OLD', 'a@test.local')).toBe(false);
+    expect(await reserveInvite(sql, 'GATE-OLD', 'a@test.local')).toBe(false);
   });
 
-  it('an invite works exactly once', async () => {
-    await sql`INSERT INTO usr.invite (code, expires_at)
-              VALUES ('GATE-ONCE', now() + interval '7 days')`;
-    expect(await redeemInvite(sql, 'GATE-ONCE', 'first@test.local')).toBe(true);
-    expect(await redeemInvite(sql, 'GATE-ONCE', 'second@test.local')).toBe(false);
+  it('RESERVING DOES NOT CONSUME — the same person may retry', async () => {
+    // The defect that stranded the first real sign-in: a code that was sent
+    // but never verified burned the invite and left no account.
+    await open('GATE-RETRY');
+    expect(await reserveInvite(sql, 'GATE-RETRY', 'a@test.local')).toBe(true);
+    expect(await reserveInvite(sql, 'GATE-RETRY', 'a@test.local')).toBe(true);
+    expect(await reserveInvite(sql, 'GATE-RETRY', 'a@test.local')).toBe(true);
+    const [row] = await sql<{ redeemed_at: string | null }[]>`
+      SELECT redeemed_at::text FROM usr.invite WHERE code = 'GATE-RETRY'`;
+    expect(row!.redeemed_at, 'still unspent until an account exists').toBeNull();
   });
 
-  it('two simultaneous redemptions admit exactly one person', async () => {
-    // The check-then-update shape is a classic race: both sessions see an
-    // unredeemed invite and both proceed. FOR UPDATE SKIP LOCKED inside the
-    // UPDATE makes the read and the write one atomic step.
-    await sql`INSERT INTO usr.invite (code, expires_at)
-              VALUES ('GATE-RACE', now() + interval '7 days')`;
+  it('a reserved invite cannot be taken by someone else', async () => {
+    await open('GATE-MINE');
+    expect(await reserveInvite(sql, 'GATE-MINE', 'first@test.local')).toBe(true);
+    expect(await reserveInvite(sql, 'GATE-MINE', 'second@test.local')).toBe(false);
+  });
+
+  it('redeeming consumes it exactly once', async () => {
+    await open('GATE-ONCE');
+    await reserveInvite(sql, 'GATE-ONCE', 'a@test.local');
+    expect(await redeemInvite(sql, 'a@test.local')).toBe(true);
+    expect(await redeemInvite(sql, 'a@test.local')).toBe(false);
+  });
+
+  it('a redeemed invite cannot be reserved again', async () => {
+    await open('GATE-SPENT');
+    await reserveInvite(sql, 'GATE-SPENT', 'a@test.local');
+    await redeemInvite(sql, 'a@test.local');
+    expect(await reserveInvite(sql, 'GATE-SPENT', 'a@test.local')).toBe(false);
+  });
+
+  it('two simultaneous reservations admit exactly one person', async () => {
+    // Check-then-update races: both sessions see an unclaimed invite and both
+    // proceed. FOR UPDATE SKIP LOCKED inside the UPDATE makes it atomic.
+    await open('GATE-RACE');
     const [a, b] = await Promise.all([
-      redeemInvite(sql, 'GATE-RACE', 'a@test.local'),
-      redeemInvite(sql, 'GATE-RACE', 'b@test.local'),
+      reserveInvite(sql, 'GATE-RACE', 'a@test.local'),
+      reserveInvite(sql, 'GATE-RACE', 'b@test.local'),
     ]);
-    expect([a, b].filter(Boolean), 'exactly one redemption may succeed').toHaveLength(1);
-
-    const [row] = await sql<{ email: string }[]>`
-      SELECT email FROM usr.invite WHERE code = 'GATE-RACE'`;
-    expect(['a@test.local', 'b@test.local']).toContain(row!.email);
+    expect([a, b].filter(Boolean), 'exactly one may reserve it').toHaveLength(1);
   });
 
-  it('records who redeemed it', async () => {
-    await sql`INSERT INTO usr.invite (code, expires_at)
-              VALUES ('GATE-WHO', now() + interval '7 days')`;
-    await redeemInvite(sql, 'GATE-WHO', 'someone@test.local');
+  it('two simultaneous redemptions consume it once', async () => {
+    await open('GATE-RACE2');
+    await reserveInvite(sql, 'GATE-RACE2', 'a@test.local');
+    const [a, b] = await Promise.all([
+      redeemInvite(sql, 'a@test.local'),
+      redeemInvite(sql, 'a@test.local'),
+    ]);
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+  });
+
+  it('records who it went to', async () => {
+    await open('GATE-WHO');
+    await reserveInvite(sql, 'GATE-WHO', 'someone@test.local');
+    await redeemInvite(sql, 'someone@test.local');
     const [row] = await sql<{ email: string; redeemed_at: string }[]>`
       SELECT email, redeemed_at::text FROM usr.invite WHERE code = 'GATE-WHO'`;
     expect(row!.email).toBe('someone@test.local');

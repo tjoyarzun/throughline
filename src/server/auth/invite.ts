@@ -1,31 +1,66 @@
 import type postgres from 'postgres';
 
 /**
- * Invite redemption.
+ * Invite handling, split into RESERVE and REDEEM.
  *
- * Extracted so the tests exercise THIS function rather than a reimplementation
- * of it. The first version lived inline in auth.ts and the test reimplemented
- * the query — which meant the test passed while the real code was racy, the
- * worst possible outcome for a test.
+ * The first version consumed the invite when the sign-in code was SENT, which
+ * is wrong in a way that only shows up in use: the account is not created
+ * until the code is verified, so anyone who mistyped the code, lost the email,
+ * or simply abandoned the flow burned their invite and was locked out with no
+ * account to show for it. It happened on the very first real sign-in attempt.
  *
- * The race: a select-then-update sees an unredeemed invite in two sessions at
- * once and both proceed. Even with `redeemed_at IS NULL` in the UPDATE's WHERE,
- * the second update simply affects zero rows — and if the caller does not CHECK
- * that, it still reports success and a single invite admits two people.
+ * So:
+ *   reserveInvite  at send time — proves the person is invited and ties the
+ *                  invite to their email, WITHOUT consuming it. Idempotent for
+ *                  the same address, so retrying is free.
+ *   redeemInvite   at account-creation time — the point of no return.
  *
- * One statement, `RETURNING` to prove a row actually changed.
+ * The `email` column carries the reservation; `redeemed_at` carries the
+ * consumption. An invite reserved for one address cannot be taken by another.
  */
-export async function redeemInvite(
+
+/** May this email sign up? Ties the invite to them without consuming it. */
+export async function reserveInvite(
   sql: ReturnType<typeof postgres>,
   code: string,
   email: string,
 ): Promise<boolean> {
   const rows = await sql<{ id: string }[]>`
     UPDATE usr.invite
-    SET redeemed_at = now(), email = ${email}
+    SET email = ${email}
     WHERE id = (
       SELECT id FROM usr.invite
       WHERE code = ${code}
+        AND redeemed_at IS NULL
+        AND expires_at > now()
+        -- Unclaimed, or already reserved by this same person retrying.
+        AND (email IS NULL OR email = ${email})
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    )
+    RETURNING id`;
+  return rows.length === 1;
+}
+
+/**
+ * Consume the invite reserved for this email. Called when the account is
+ * actually created, so a failed verification costs nothing.
+ *
+ * One statement with RETURNING, not select-then-update: the obvious version
+ * races, and even with `redeemed_at IS NULL` in the WHERE the second caller's
+ * update simply affects zero rows — which still reports success unless the
+ * caller checks. One invite would admit two people.
+ */
+export async function redeemInvite(
+  sql: ReturnType<typeof postgres>,
+  email: string,
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE usr.invite
+    SET redeemed_at = now()
+    WHERE id = (
+      SELECT id FROM usr.invite
+      WHERE email = ${email}
         AND redeemed_at IS NULL
         AND expires_at > now()
       FOR UPDATE SKIP LOCKED

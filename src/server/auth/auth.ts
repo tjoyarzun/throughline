@@ -8,7 +8,7 @@ import postgres from 'postgres';
 import { account, session, oauthAccount, verification } from '../../../drizzle/schema/usr';
 import { pooledDatabaseUrl } from '../db/resolve-url';
 import { sendOtpEmail } from './send-otp';
-import { redeemInvite } from './invite';
+import { reserveInvite, redeemInvite } from './invite';
 
 /**
  * Authentication.
@@ -80,13 +80,18 @@ export const auth = betterAuth({
          * "Hello, ". Seed it from the email local part; the person can change
          * it later.
          */
-        before: async (user) => ({
-          data: {
-            ...user,
-            name: user.name?.trim() || user.email.split('@')[0] || 'Someone',
-            emailVerified: true,
-          },
-        }),
+        before: async (user) => {
+          // The point of no return: the account is being created, so the
+          // invite is finally spent.
+          await redeemInvite(client, user.email);
+          return {
+            data: {
+              ...user,
+              name: user.name?.trim() || user.email.split('@')[0] || 'Someone',
+              emailVerified: true,
+            },
+          };
+        },
       },
     },
   },
@@ -139,7 +144,9 @@ export const auth = betterAuth({
         .limit(1);
       if (existing.length > 0) return;
 
-      if (!body.inviteCode || !(await redeemInvite(client, body.inviteCode, email))) {
+      // RESERVE, do not consume: the account does not exist until the code is
+      // verified, so consuming here strands anyone who mistypes it.
+      if (!body.inviteCode || !(await reserveInvite(client, body.inviteCode, email))) {
         throw new APIError('FORBIDDEN', {
           message: 'Throughline is invite-only. A valid invite code is required to sign up.',
         });
