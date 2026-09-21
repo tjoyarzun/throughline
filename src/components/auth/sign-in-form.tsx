@@ -15,6 +15,33 @@ import { useState } from 'react';
  */
 type Stage = 'email' | 'code' | 'sent';
 
+/**
+ * Surface what the server actually said.
+ *
+ * The first version showed a flat "Could not send a code" for every failure,
+ * which turned three completely different problems — wrong endpoint, invalid
+ * invite, no email provider configured — into one useless sentence. An error
+ * message that does not distinguish causes is barely better than none.
+ */
+async function explain(res: Response): Promise<string> {
+  let detail = '';
+  try {
+    const body: unknown = await res.clone().json();
+    if (body && typeof body === 'object' && 'message' in body) {
+      detail = String((body as { message: unknown }).message);
+    }
+  } catch {
+    detail = (await res.text().catch(() => '')).slice(0, 300);
+  }
+  if (detail) return detail;
+  if (res.status === 403) return 'That invite code is not valid.';
+  if (res.status === 429) return 'Too many attempts. Wait a minute and try again.';
+  if (res.status >= 500) {
+    return 'The server could not send a code. Email delivery may not be configured yet.';
+  }
+  return `Request failed (${res.status}).`;
+}
+
 export function SignInForm({ next }: { next: string }) {
   const [stage, setStage] = useState<Stage>('email');
   const [email, setEmail] = useState('');
@@ -28,12 +55,19 @@ export function SignInForm({ next }: { next: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/sign-in/email-otp', {
+      // Better Auth's SEND endpoint. The verify endpoint is a different path —
+      // posting to the wrong one returns an unhelpful failure, which is exactly
+      // what shipped the first time.
+      const res = await fetch('/api/auth/email-otp/send-verification-otp', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, inviteCode: inviteCode || undefined }),
+        body: JSON.stringify({
+          email,
+          type: 'sign-in',
+          inviteCode: inviteCode.trim() || undefined,
+        }),
       });
-      if (!res.ok) throw new Error((await res.text()) || 'Could not send a code');
+      if (!res.ok) throw new Error(await explain(res));
       setStage('code');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -47,12 +81,12 @@ export function SignInForm({ next }: { next: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/sign-in/email-otp/verify', {
+      const res = await fetch('/api/auth/sign-in/email-otp', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, otp: code }),
       });
-      if (!res.ok) throw new Error('That code did not work');
+      if (!res.ok) throw new Error(await explain(res));
       window.location.href = next;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

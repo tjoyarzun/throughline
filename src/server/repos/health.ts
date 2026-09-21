@@ -34,6 +34,7 @@ export interface HealthReport {
   status: 'ok' | 'degraded' | 'error';
   problems: string[];
   db: string;
+  auth?: { secret: boolean; email_delivery: boolean };
   job_queue?: unknown;
   cron?: Record<string, unknown>;
   corpus?: unknown;
@@ -116,10 +117,25 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       );
     }
 
+    /**
+     * Sign-in generates a code and then has to deliver it. Without an email
+     * provider the flow returns a 500 at the last step, which looks like a bug
+     * in the app rather than missing configuration — so it is reported here.
+     */
+    const emailConfigured = Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+    const authConfigured = Boolean(process.env.BETTER_AUTH_SECRET);
+    if (!authConfigured) problems.push('BETTER_AUTH_SECRET is not set — sign-in cannot work');
+    if (!emailConfigured && process.env.NODE_ENV === 'production') {
+      problems.push(
+        'no email provider (RESEND_API_KEY, EMAIL_FROM) — sign-in codes cannot be delivered',
+      );
+    }
+
     return {
       status: problems.length === 0 ? 'ok' : 'degraded',
       problems,
       db: 'ok',
+      auth: { secret: authConfigured, email_delivery: emailConfigured },
       job_queue: queue,
       cron: Object.fromEntries(cronRows.map((c) => [c.kind, c])),
       corpus,
