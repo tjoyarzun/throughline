@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { themeCoverage } from '@/server/ingest/derive-themes';
 
 /**
  * Health reporting. Lives in the repository layer, not the route handler:
@@ -38,6 +39,7 @@ export interface HealthReport {
   job_queue?: unknown;
   cron?: Record<string, unknown>;
   corpus?: unknown;
+  graph?: unknown;
   reason?: string;
 }
 
@@ -71,35 +73,53 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
              count(*) FILTER (WHERE status = 'failed')::int AS consecutive_failures
       FROM core.job GROUP BY kind`;
 
-    // Theme coverage is measured against titles that HAVE keywords, not all
-    // titles. Roughly 10% of the corpus has no TMDB keywords at all, so no
-    // crosswalk can ever theme those — counting them made a data ceiling look
-    // like a crosswalk failure. This must stay identical to the definition in
-    // scripts/derive-themes.ts; two places computing one metric differently is
-    // its own bug, and we already shipped it once.
-    const [corpus] = await sql<
+    // Theme coverage comes from themeCoverage(), the SAME function the
+    // derivation itself reports with. It used to be a second copy of the query
+    // here, with a comment begging the two to stay identical -- they had
+    // already diverged once. One definition, two callers.
+    const cov = await themeCoverage(sql);
+    const pctInt = (a: number, b: number) => (b === 0 ? null : Math.round((100 * a) / b));
+    const [fresh] = await sql<{ pct_fresh: number | null }[]>`
+      SELECT round(100.0 * count(*) FILTER (
+               WHERE synced_at > now() - interval '48 hours') / nullif(count(*), 0))::int
+             AS pct_fresh
+      FROM core.title`;
+
+    // Entity counts, so "which tables are still empty?" is answerable from
+    // production, where there is no psql. Also what the Universe hub renders.
+    const [graph] = await sql<
       {
-        titles: number;
-        pct_fresh: number | null;
-        themed_pct: number | null;
-        no_keyword_pct: number | null;
+        people: number;
+        credits: number;
+        edges: number;
+        derived_edges: number;
+        concepts: number;
+        collections: number;
+        organizations: number;
+        works: number;
+        characters: number;
+        seasons: number;
+        episodes: number;
       }[]
     >`
-      WITH t AS (
-        SELECT ti.id,
-               EXISTS (SELECT 1 FROM core.title_keyword k WHERE k.title_id = ti.id) AS has_kw,
-               EXISTS (SELECT 1 FROM core.edge e
-                       WHERE e.subject_id = ti.id AND e.predicate = 'explores_theme') AS themed
-        FROM core.title ti
-      )
-      SELECT (SELECT count(*)::int FROM t) AS titles,
-             (SELECT round(100.0 * count(*) FILTER (
-                WHERE synced_at > now() - interval '48 hours') / nullif(count(*), 0))
-              FROM core.title)::int AS pct_fresh,
-             (SELECT round(100.0 * count(*) FILTER (WHERE has_kw AND themed)
-                / nullif(count(*) FILTER (WHERE has_kw), 0)) FROM t)::int AS themed_pct,
-             (SELECT round(100.0 * count(*) FILTER (WHERE NOT has_kw)
-                / nullif(count(*), 0)) FROM t)::int AS no_keyword_pct`;
+      SELECT (SELECT count(*)::int FROM core.person)       AS people,
+             (SELECT count(*)::int FROM core.credit)       AS credits,
+             (SELECT count(*)::int FROM core.edge)         AS edges,
+             (SELECT count(*)::int FROM core.edge_derived) AS derived_edges,
+             (SELECT count(*)::int FROM core.concept)      AS concepts,
+             (SELECT count(*)::int FROM core.collection)   AS collections,
+             (SELECT count(*)::int FROM core.organization) AS organizations,
+             (SELECT count(*)::int FROM core.work)         AS works,
+             (SELECT count(*)::int FROM core.character)    AS characters,
+             (SELECT count(*)::int FROM core.season)       AS seasons,
+             (SELECT count(*)::int FROM core.episode)      AS episodes`;
+
+    const corpus = {
+      titles: cov.titles,
+      pct_fresh: fresh?.pct_fresh ?? null,
+      themed_pct: pctInt(cov.themed, cov.with_keywords),
+      no_keyword_pct: pctInt(cov.no_keywords, cov.titles),
+    };
 
     if ((queue?.oldest ?? 0) > QUEUE_STALL_S)
       problems.push(`job queue stalled (${queue!.oldest}s)`);
@@ -139,6 +159,7 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       job_queue: queue,
       cron: Object.fromEntries(cronRows.map((c) => [c.kind, c])),
       corpus,
+      graph,
     };
   } catch (e) {
     return {
