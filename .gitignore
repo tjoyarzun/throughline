@@ -2,6 +2,9 @@ node_modules/
 .next/
 out/
 build/
+# Secrets. The negation MUST come last — gitignore resolves by LAST match,
+# so a later broad `.env*` silently re-ignores .env.example. `vercel link`
+# appends exactly that; if it comes back, delete it rather than reordering.
 .env
 .env.*
 !.env.example
@@ -13,4 +16,3 @@ test-results/
 playwright-report/
 .vercel
 .vitest/
-.env*
