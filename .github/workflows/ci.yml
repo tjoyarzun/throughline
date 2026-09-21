@@ -34,6 +34,10 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/throughline_test
       DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/throughline_test
       TEST_DATABASE_URL: postgresql://throughline_app:ci_only_password@localhost:5432/throughline_test
+      # The authentication role. Without this the auth-bootstrap suite skips,
+      # and the tests proving app_auth cannot read viewing history stop running
+      # in the one place it matters. assert-no-skips caught exactly that.
+      TEST_AUTH_DATABASE_URL: postgresql://throughline_auth:ci_only_password@localhost:5432/throughline_test
       TEST_DB_PASSWORD: ci_only_password
 
     steps:

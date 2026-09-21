@@ -151,3 +151,60 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     await sql.end();
   }
 }
+
+export interface JobFailure {
+  kind: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  count: number;
+}
+
+/**
+ * Job queue diagnostics.
+ *
+ * /api/health reports THAT jobs are failing; this reports WHY. In production
+ * the only other way to read a handler's error message is a database console,
+ * and the connection string is deliberately unreachable — so a failure that is
+ * trivially visible locally is invisible exactly where it matters.
+ */
+export async function getJobDiagnostics(databaseUrl: string): Promise<{
+  by_status: { status: string; count: number }[];
+  failures: JobFailure[];
+}> {
+  const sql = postgres(databaseUrl, { max: 1, prepare: false, onnotice: () => {} });
+  try {
+    const by_status = await sql<{ status: string; count: number }[]>`
+      SELECT status, count(*)::int AS count FROM core.job GROUP BY status ORDER BY count DESC`;
+    const failures = await sql<JobFailure[]>`
+      SELECT kind, status, max(attempts)::int AS attempts,
+             left(last_error, 500) AS last_error, count(*)::int AS count
+      FROM core.job
+      WHERE last_error IS NOT NULL
+      GROUP BY kind, status, left(last_error, 500)
+      ORDER BY count DESC
+      LIMIT 10`;
+    return { by_status, failures };
+  } finally {
+    await sql.end();
+  }
+}
+
+/**
+ * Clear the exponential backoff so a drain retries immediately. The necessary
+ * other half of diagnostics: after fixing a handler there has to be a way to
+ * retry without waiting the backoff out.
+ */
+export async function requeueJobs(databaseUrl: string, kind?: string): Promise<number> {
+  const sql = postgres(databaseUrl, { max: 1, prepare: false, onnotice: () => {} });
+  try {
+    const rows = kind
+      ? await sql`UPDATE core.job SET status = 'queued', attempts = 0, run_after = now(),
+                  last_error = NULL WHERE kind = ${kind} AND status <> 'done' RETURNING 1`
+      : await sql`UPDATE core.job SET status = 'queued', attempts = 0, run_after = now(),
+                  last_error = NULL WHERE status <> 'done' RETURNING 1`;
+    return rows.length;
+  } finally {
+    await sql.end();
+  }
+}
