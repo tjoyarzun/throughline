@@ -9,6 +9,7 @@ import { account, session, oauthAccount, verification } from '../../../drizzle/s
 import { authDatabaseUrl, pooledDatabaseUrl } from '../db/resolve-url';
 import { sendOtpEmail } from './send-otp';
 import { reserveInvite, redeemInvite } from './invite';
+import { rateLimitConsume } from '../rate-limit';
 
 /**
  * Authentication.
@@ -188,6 +189,33 @@ export const auth = betterAuth({
         });
       }
     }),
+  },
+  /**
+   * Rate limiting on the authentication endpoints.
+   *
+   * Better Auth already ships the RULES -- 3 per 60s on the OTP send, 3 per
+   * 10s on sign-in -- and they are stricter than anything worth writing by
+   * hand. A limiter added in the `before` hook was dead code: theirs runs
+   * first and always refused before mine was reached.
+   *
+   * What it does NOT ship is durable storage. The default is an in-process
+   * Map, so on Vercel the budget is per lambda and is discarded whenever an
+   * instance recycles -- an attacker gets 3 per minute per instance, times
+   * however many instances they can reach. Pointing customStorage at
+   * core.rate_limit makes one shared, durable counter out of it and leaves
+   * their rules in charge.
+   *
+   * enabled is forced on so the behavior is identical in development, where
+   * it defaults off and would otherwise only ever be exercised in production.
+   */
+  rateLimit: {
+    enabled: true,
+    customStorage: {
+      async consume(key: string, rule: { window?: number; max: number }) {
+        const r = await rateLimitConsume(`auth:${key}`, rule.max, rule.window ?? 10);
+        return { allowed: r.allowed, retryAfter: r.allowed ? null : r.retryAfter };
+      },
+    },
   },
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL,

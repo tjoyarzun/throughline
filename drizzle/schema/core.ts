@@ -550,3 +550,30 @@ export const personBacon = core.table('person_bacon', {
   viaTitleId: uuid('via_title_id').references(() => title.id),
   computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Rate limiting counters.
+ *
+ * In core rather than usr because the buckets are keyed by IP as often as by
+ * account -- an unauthenticated sign-in attempt has no account to scope to --
+ * and because nothing here belongs to a person: the rows are operational, and
+ * an account deletion must not erase the record of what that address has been
+ * doing.
+ *
+ * Two rows per bucket at most (the current window and the previous one), so
+ * the table stays small; housekeeping drops anything older than a day.
+ */
+export const rateLimit = core.table(
+  'rate_limit',
+  {
+    /** 'auth:send:203.0.113.4', 'path:<account uuid>' — caller-defined. */
+    bucket: text('bucket').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    hits: integer('hits').notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.bucket, t.windowStart] }),
+    // Pruning scans by age, not by bucket.
+    index('rate_limit_window_idx').on(t.windowStart),
+  ],
+);

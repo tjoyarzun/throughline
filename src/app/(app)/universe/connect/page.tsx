@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { graphEngine } from '@/lib/graph/postgres-engine';
 import { PathChain } from '@/components/graph/path-chain';
 import { ConnectForm } from '@/components/graph/connect-form';
+import { getAccountId } from '@/server/auth/session';
+import { rateLimit } from '@/server/rate-limit';
 
 export const metadata = { title: 'Find the throughline' };
 export const dynamic = 'force-dynamic';
@@ -27,7 +29,22 @@ export default async function ConnectPage({
     a ? graphEngine.node(a) : null,
     b ? graphEngine.node(b) : null,
   ]);
-  const paths = nodeA && nodeB ? await graphEngine.findPaths(nodeA, nodeB) : [];
+  /**
+   * The one genuinely expensive query in the app -- a bidirectional expansion
+   * over ~108k edges -- and it is reachable by editing a URL, so it is the
+   * obvious thing to hammer.
+   *
+   * Counted only when both endpoints resolve, so landing on the page or
+   * picking one side costs nothing. Fail-open: a limiter outage should not
+   * take the Universe down with it.
+   */
+  const accountId = await getAccountId();
+  let throttled = false;
+  if (nodeA && nodeB && accountId) {
+    const gate = await rateLimit(`paths:${accountId}`, 20, 60);
+    throttled = !gate.allowed;
+  }
+  const paths = nodeA && nodeB && !throttled ? await graphEngine.findPaths(nodeA, nodeB) : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,7 +71,19 @@ export default async function ConnectPage({
         }
       />
 
-      {nodeA && nodeB && paths.length === 0 && (
+      {throttled && (
+        <section
+          className="flex flex-col items-center gap-2 rounded-xl border px-6 py-10 text-center"
+          style={{ borderColor: 'var(--tl-border)', background: 'var(--tl-surface)' }}
+        >
+          <h2 className="text-xl">Catching our breath.</h2>
+          <p className="max-w-sm text-sm" style={{ color: 'var(--tl-text-dim)' }}>
+            That is a lot of path finding in one minute. Give it a moment and try again.
+          </p>
+        </section>
+      )}
+
+      {!throttled && nodeA && nodeB && paths.length === 0 && (
         <section
           className="flex flex-col items-center gap-2 rounded-xl border px-6 py-10 text-center"
           style={{ borderColor: 'var(--tl-border)', background: 'var(--tl-surface)' }}

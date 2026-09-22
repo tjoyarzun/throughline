@@ -404,3 +404,69 @@ BEGIN
 
   RETURN;
 END $$;
+
+/* ── Rate limiting ─────────────────────────────────────────────────────────
+
+   Postgres, not Redis. The spec named Upstash, but product principle 9 says
+   a vendor has to justify itself against a Postgres table that would do 80%
+   of the job -- and the spec ALSO required a Postgres fallback for when Redis
+   is unavailable. If the fallback has to exist anyway, the only thing the
+   second system buys at family-app volume is latency we are not short of:
+   Neon Launch has no auto-suspend, and this is one indexed upsert.
+   Revisit if a limiter check ever exceeds ~10ms at p95, or if the app grows
+   beyond a single region.
+
+   A SLIDING window, not a fixed one. A fixed window lets someone spend the
+   whole budget at 0:59 and the whole budget again at 1:01, so a limit of 5
+   is really a limit of 10 and the number in the docs is a lie. This weights
+   the previous window by how much of it is still in view -- the standard
+   two-counter approximation -- which costs one extra read and makes the
+   stated limit the true one to within a few percent.
+
+   The hit is counted even when the request is denied. Otherwise hammering a
+   blocked endpoint keeps the estimate at exactly the limit forever and the
+   caller is never told to back off for longer. */
+CREATE OR REPLACE FUNCTION core.rate_limit_hit(
+  p_bucket text,
+  p_limit  int,
+  p_window interval
+)
+RETURNS TABLE (allowed boolean, remaining int, retry_after_s int)
+LANGUAGE plpgsql
+/* SECURITY DEFINER so that app_web keeps ZERO write grants on core. Product
+   principle 4 -- the global model is never contaminated by a user -- is a
+   grant-level guarantee, and a counters table is not a good enough reason to
+   punch the first hole in it. The function writes one row of one operational
+   table and can do nothing else. */
+SECURITY DEFINER
+SET search_path = core, pg_temp
+AS $$
+DECLARE
+  win_s    numeric := extract(epoch FROM p_window);
+  w_start  timestamptz;
+  elapsed  numeric;
+  prev     int;
+  cur      int;
+  estimate numeric;
+BEGIN
+  -- Align to a fixed grid so every caller in a window shares a row, rather
+  -- than each request minting its own and defeating the aggregation.
+  w_start  := to_timestamp(floor(extract(epoch FROM now()) / win_s) * win_s);
+  elapsed  := (extract(epoch FROM now()) - extract(epoch FROM w_start)) / win_s;
+
+  SELECT hits INTO prev FROM core.rate_limit
+   WHERE bucket = p_bucket AND window_start = w_start - p_window;
+  prev := coalesce(prev, 0);
+
+  INSERT INTO core.rate_limit (bucket, window_start, hits)
+       VALUES (p_bucket, w_start, 1)
+  ON CONFLICT (bucket, window_start)
+    DO UPDATE SET hits = core.rate_limit.hits + 1
+    RETURNING hits INTO cur;
+
+  estimate      := prev * (1 - elapsed) + cur;
+  allowed       := estimate <= p_limit;
+  remaining     := greatest(0, p_limit - ceil(estimate)::int);
+  retry_after_s := greatest(1, ceil(extract(epoch FROM (w_start + p_window - now())))::int);
+  RETURN NEXT;
+END $$;

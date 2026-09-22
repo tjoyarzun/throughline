@@ -134,9 +134,54 @@ https://image.tmdb.org`; `connect-src 'self'`; `frame-ancestors 'none'`; `object
 
 ## Rate limiting
 
-Upstash Redis sliding window: auth 5/min/IP · search proxy 30/min/account · share creation
-20/hour/account · public share page 120/min/IP · **path finder 20/min/account** (the expensive one).
-Postgres fallback counter if Redis is unavailable; fail-open on search, **fail-closed on auth**.
+**Postgres, not Upstash.** The spec named Upstash Redis and also required a Postgres fallback for
+when Redis is unavailable. If the fallback has to exist anyway, the second system buys only latency
+at family-app volume — Neon Launch has no auto-suspend and a check is one indexed upsert measured in
+single-digit milliseconds. Product principle 9 says a vendor must justify itself against a Postgres
+table that would do 80% of the job; this one does 100%. Revisit if a check exceeds ~10ms at p95, or
+if the app ever runs in more than one region.
+
+`core.rate_limit_hit(bucket, limit, window)` is a **sliding** window, not a fixed one. A fixed window
+lets a caller spend the whole budget at 0:59 and again at 1:01, so a stated limit of 5 is really 10
+and the number in this document would be a lie. It weights the previous window by how much of it is
+still in view — the standard two-counter approximation — for one extra read. A test asserts this, and
+fails against a fixed-window implementation.
+
+It is `SECURITY DEFINER` so `app_web` keeps **zero write grants anywhere in `core`**: a counters table
+is not a good enough reason to punch the first hole in product principle 4.
+
+| Surface             | Budget    | Key       | On limiter failure |
+| ------------------- | --------- | --------- | ------------------ |
+| Sign-in code send   | 3 / 60s   | IP + path | **fail-closed**    |
+| Sign-in code verify | 3 / 10s   | IP + path | **fail-closed**    |
+| Search proxy (TMDB) | 30 / 60s  | account   | fail-open          |
+| Graph typeahead     | 30 / 60s  | account   | fail-open          |
+| Path finder         | 20 / 60s  | account   | fail-open          |
+| Share creation      | 20 / hour | account   | fail-open          |
+
+The two authentication rows are **Better Auth's own rules**, not ours. It ships them, they are
+stricter than anything worth hand-writing, and a limiter added in a `before` hook was dead code —
+theirs runs first and always refused before ours was reached. What Better Auth does _not_ ship is
+durable storage: the default is an in-process `Map`, so on Vercel the budget is per lambda and is
+discarded whenever an instance recycles, giving an attacker 3/min times however many instances they
+can reach. `rateLimit.customStorage` points it at `core.rate_limit`, which makes one shared, durable
+counter and leaves its rules in charge. `enabled` is forced on so development behaves like production
+rather than exercising the path for the first time in production.
+
+Fail-open is the default because the limiter protects TMDB's quota and our own CPU, not a secret —
+turning a database hiccup into a dead search box is the worse outcome. Authentication is the
+exception: unlimited attempts at a six-digit code is the one case where an outage wins an attacker
+something, and refusing sign-in during a database outage costs nothing, because sign-in needs the
+database anyway.
+
+Refused attempts are still counted. Otherwise hammering a blocked endpoint holds the estimate at
+exactly the limit and the caller is never told to back off for longer.
+
+The public share page is **not** limited: it is served from the route cache and does not reach the
+database on a hit, so a counter write would be the most expensive thing about it.
+
+Counters are pruned by `housekeeping` after a day; only the current and previous windows are ever
+read.
 
 ## Secrets and rotation
 

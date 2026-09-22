@@ -205,6 +205,10 @@ export const HANDLERS: Record<string, Handler> = {
   housekeeping: async (sql) => {
     await sql`DELETE FROM raw.tmdb_payload
               WHERE fetched_at < now() - interval '90 days' AND pruned_at IS NULL`;
+    /* Rate limit counters are only ever read for the current window and the
+       one before it, so anything older is dead weight. Without this the table
+       grows without bound -- one row per bucket per window, forever. */
+    await sql`DELETE FROM core.rate_limit WHERE window_start < now() - interval '1 day'`;
     await sql`ANALYZE core.title, core.person, core.credit, core.edge`;
   },
 };

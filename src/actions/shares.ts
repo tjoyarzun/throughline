@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireAccountId } from '@/server/auth/session';
 import { createShare, revokeShare } from '@/server/repos/shares';
+import { rateLimit } from '@/server/rate-limit';
 
 /**
  * Share creation.
@@ -25,6 +26,16 @@ export async function createShareAction(input: {
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid request' };
+
+  /**
+   * Per hour, not per minute. Every share is a permanent public URL, so the
+   * thing worth bounding is accumulation rather than burst -- and the normal
+   * shape of use is a handful across an evening, nowhere near twenty.
+   */
+  const gate = await rateLimit(`share:${accountId}`, 20, 3600);
+  if (!gate.allowed) {
+    return { ok: false, error: 'That is a lot of links. Try again in a little while.' };
+  }
 
   const r = await createShare(accountId, parsed.data.titleId, {
     includeRating: parsed.data.includeRating ?? true,

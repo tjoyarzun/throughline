@@ -50,6 +50,13 @@
       "when": 1790089843090,
       "tag": "0006_flippant_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790108668533,
+      "tag": "0007_overjoyed_spectrum",
+      "breakpoints": true
     }
   ]
 }

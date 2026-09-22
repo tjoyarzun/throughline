@@ -58,6 +58,15 @@ GRANT EXECUTE ON FUNCTION usr.admin_revoke_invite(text) TO app_web;
 GRANT EXECUTE ON FUNCTION usr.share_record_view(text)  TO app_web;
 GRANT EXECUTE ON FUNCTION usr.delete_account(uuid)     TO app_web;
 
+/* The limiter must work for callers with NO session -- an unauthenticated
+   sign-in attempt is exactly what it exists to bound -- so app_web needs it
+   directly rather than through anything account-scoped. */
+GRANT EXECUTE ON FUNCTION core.rate_limit_hit(text, int, interval) TO app_web, app_auth;
+
+/* No table grant, deliberately: rate_limit_hit is SECURITY DEFINER, so
+   app_web keeps zero write privileges anywhere in core. */
+REVOKE ALL ON core.rate_limit FROM app_web, app_auth;
+
 GRANT EXECUTE ON FUNCTION core.claim_jobs(int, text, interval)  TO app_ingest;
 GRANT EXECUTE ON FUNCTION core.finish_job(uuid)                 TO app_ingest;
 GRANT EXECUTE ON FUNCTION core.fail_job(uuid, text, int)        TO app_ingest;
