@@ -1,16 +1,26 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { cronAuthorized, databaseUrl } from '@/server/jobs/cron-auth';
-import { enqueueJobKind } from '@/server/jobs/drain';
+import { drainQueue, enqueueJobKind } from '@/server/jobs/drain';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
- * Nightly: put a refresh pass on the queue.
+ * Nightly: refresh the stalest titles from TMDB.
  *
- * Enqueues rather than running inline. A full refresh is thousands of TMDB
- * calls and the job chains itself through the backlog; doing that inside one
- * cron invocation would blow the function's wall clock, which is how the
- * Wikidata walk was lost the first time.
+ * Enqueues AND THEN DRAINS, in that order, in this invocation.
+ *
+ * Enqueueing alone was wrong. The drain cron runs once a day at 04:00, so a
+ * job placed on the queue at 03:00 is only processed if those two fire in
+ * that order -- and Hobby cron timing is approximate. The first night this
+ * ran, the job sat for nine and a half hours and the health endpoint reported
+ * "job queue stalled" the entire morning, because the stall threshold is
+ * fifteen minutes and the next drain was twenty hours away.
+ *
+ * The queue is still the right home for the work: refresh_stale chains itself
+ * through the backlog, and the chain survives this function timing out. What
+ * changes is that nobody has to wait a day for the first link.
  */
 export async function GET(request: Request): Promise<NextResponse> {
   if (!cronAuthorized(request)) {
@@ -18,5 +28,19 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
   const url = databaseUrl();
   if (!url) return NextResponse.json({ error: 'database not configured' }, { status: 500 });
-  return NextResponse.json(await enqueueJobKind(url, 'refresh_stale', { batch: 60 }));
+
+  const enqueued = await enqueueJobKind(url, 'refresh_stale', { batch: 60 });
+
+  // after() so the cron response returns immediately; the drain keeps working
+  // in the same invocation. A failure here is not a failed cron -- the job is
+  // on the queue either way and tomorrow's drain is the backstop.
+  after(async () => {
+    try {
+      await drainQueue(url, { budgetMs: 40_000 });
+    } catch {
+      /* the queue keeps the work */
+    }
+  });
+
+  return NextResponse.json(enqueued);
 }

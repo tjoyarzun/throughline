@@ -19,7 +19,20 @@ const MAX_AGE_S: Record<string, number> = {
   housekeeping: 172_800,
 };
 
-const QUEUE_STALL_S = 900;
+/**
+ * How long a job may sit before something is actually wrong.
+ *
+ * Fifteen minutes was written against the spec's per-minute drain, which the
+ * Hobby plan does not allow -- cron there is DAILY. Measured against a cadence
+ * that does not exist, the check reported "stalled" every morning for work
+ * that was simply waiting its turn, which is noise, not a signal.
+ *
+ * Every path that enqueues now also drains: tracking actions kick one through
+ * after(), and the refresh cron drains what it enqueues. So a job still
+ * sitting hours later means some enqueue path forgot to, and that is worth
+ * being told about.
+ */
+const QUEUE_STALL_S = 6 * 60 * 60;
 /**
  * Alert threshold, NOT the target.
  *
