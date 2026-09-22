@@ -18,7 +18,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres from 'postgres';
-import { directDatabaseUrl, describeUrl } from '@/server/db/resolve-url';
+import { directDatabaseUrl, describeUrl, AUTH_ROLE } from '@/server/db/resolve-url';
 
 const resolved = directDatabaseUrl();
 if (!resolved) {
@@ -37,6 +37,58 @@ async function runFile(path: string, label: string): Promise<void> {
   const started = Date.now();
   await sql.unsafe(body);
   console.log(`  ✓ ${label} (${Date.now() - started}ms)`);
+}
+
+/**
+ * Give app_auth a role that can actually connect.
+ *
+ * app_auth is created NOLOGIN -- it is a bundle of grants, not an identity.
+ * Production therefore needs a login role that holds it, and the password has
+ * to come from somewhere that is not this repository.
+ *
+ * NON-FATAL by design. A managed Postgres may refuse CREATE ROLE, and a
+ * deploy that dies because an optional hardening step was unavailable is worse
+ * than one that ships and says so: authentication still works through the
+ * fallback, loudly, and nothing else in the migration depends on this.
+ */
+async function provisionAuthRole(sql: ReturnType<typeof postgres>): Promise<void> {
+  const password = process.env.AUTH_DB_PASSWORD;
+  if (!password || !password.trim()) {
+    console.log('  (skipped: AUTH_DB_PASSWORD not set)');
+    return;
+  }
+  try {
+    // The password is passed as a quoted literal, not interpolated raw: it is
+    // a secret from the environment, and a stray quote would be a syntax error
+    // at best.
+    const quoted = `'${password.replace(/'/g, "''")}'`;
+    await sql.unsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${AUTH_ROLE}') THEN
+          -- %L, not %s: %s interpolates raw, so PASSWORD hunter2 is a syntax
+          -- error and PASSWORD o'brien would be an injection.
+          EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', '${AUTH_ROLE}', ${quoted});
+        ELSE
+          EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', '${AUTH_ROLE}', ${quoted});
+        END IF;
+      END $$;`);
+    await sql.unsafe(`ALTER ROLE ${AUTH_ROLE} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`);
+    await sql.unsafe(`GRANT app_auth TO ${AUTH_ROLE}`);
+    const [db] = await sql<{ current_database: string }[]>`SELECT current_database()`;
+    await sql.unsafe(`GRANT CONNECT ON DATABASE "${db!.current_database}" TO ${AUTH_ROLE}`);
+
+    // Stated, not assumed: a role that bypasses RLS would defeat the point.
+    const [check] = await sql<{ rolsuper: boolean; rolbypassrls: boolean }[]>`
+      SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = ${AUTH_ROLE}`;
+    if (check?.rolsuper || check?.rolbypassrls) {
+      throw new Error(`${AUTH_ROLE} can bypass RLS`);
+    }
+    console.log(`  ✓ ${AUTH_ROLE} ready (member of app_auth, nobypassrls)`);
+  } catch (e) {
+    console.warn(`  ! could not provision ${AUTH_ROLE}: ${e instanceof Error ? e.message : e}`);
+    console.warn('    Authentication will fall back to the application connection.');
+  }
 }
 
 async function main(): Promise<void> {
@@ -99,6 +151,10 @@ async function main(): Promise<void> {
   ]) {
     await runFile(join('drizzle/sql', f), f);
   }
+
+  // After 40-roles.sql, which is what creates app_auth in the first place.
+  console.log('8. authentication login role');
+  await provisionAuthRole(sql);
 
   const rows = await sql<
     { count: number }[]

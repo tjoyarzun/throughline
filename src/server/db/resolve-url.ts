@@ -43,3 +43,40 @@ export function describeUrl(url: string): string {
     return '<unparsable>';
   }
 }
+
+/** The login role that carries the app_auth grants. */
+export const AUTH_ROLE = 'throughline_auth';
+
+/**
+ * The connection authentication uses.
+ *
+ * DERIVED from the pooled URL rather than configured separately. A second
+ * connection string would be the same host, database and parameters as the
+ * first with two fields changed -- and two copies of one fact drift. Rotate
+ * the database and you would have to remember both; forget, and auth keeps
+ * talking to the old one.
+ *
+ * So production sets ONE secret, AUTH_DB_PASSWORD, and this swaps the
+ * credentials on the URL that already exists. An explicit AUTH_DATABASE_URL
+ * still wins when someone genuinely needs a different host.
+ *
+ * Returns null when neither is configured, which the caller must treat as a
+ * problem in production rather than a default.
+ */
+export function authDatabaseUrl(): { name: string; url: string } | null {
+  const explicit = process.env.AUTH_DATABASE_URL;
+  if (explicit && explicit.trim()) return { name: 'AUTH_DATABASE_URL', url: explicit };
+
+  const password = process.env.AUTH_DB_PASSWORD;
+  const base = pooledDatabaseUrl();
+  if (!password || !password.trim() || !base) return null;
+
+  try {
+    const u = new URL(base.url);
+    u.username = AUTH_ROLE;
+    u.password = password;
+    return { name: 'derived from AUTH_DB_PASSWORD', url: u.toString() };
+  } catch {
+    return null;
+  }
+}

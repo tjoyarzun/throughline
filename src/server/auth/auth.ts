@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 import postgres from 'postgres';
 import { account, session, oauthAccount, verification } from '../../../drizzle/schema/usr';
-import { pooledDatabaseUrl } from '../db/resolve-url';
+import { authDatabaseUrl, pooledDatabaseUrl } from '../db/resolve-url';
 import { sendOtpEmail } from './send-otp';
 import { reserveInvite, redeemInvite } from './invite';
 
@@ -37,11 +37,26 @@ import { reserveInvite, redeemInvite } from './invite';
  * locally (a superuser bypasses RLS) but NOT in production — see
  * docs/security.md#the-authentication-bootstrap.
  */
-const resolved =
-  (process.env.AUTH_DATABASE_URL
-    ? { name: 'AUTH_DATABASE_URL', url: process.env.AUTH_DATABASE_URL }
-    : null) ?? pooledDatabaseUrl();
+const authUrl = authDatabaseUrl();
+const resolved = authUrl ?? pooledDatabaseUrl();
 if (!resolved) throw new Error('auth: no database URL configured');
+
+/**
+ * Falling back is correct locally and NOT correct in production.
+ *
+ * Locally the fallback role is a superuser, which bypasses RLS, so everything
+ * works and nothing is proven. In production it means authentication connects
+ * with full privileges on every table -- ratings, viewing history, notes,
+ * shares -- when it needs four identity tables. That is the whole reason
+ * app_auth exists, so say so out loud rather than letting it pass silently.
+ */
+if (!authUrl && process.env.NODE_ENV === 'production') {
+  console.warn(
+    'auth: AUTH_DB_PASSWORD is not set, so authentication is using the ' +
+      'application connection instead of the least-privilege app_auth role. ' +
+      'See docs/security.md#the-authentication-bootstrap.',
+  );
+}
 
 const client = postgres(resolved.url, { max: 5, prepare: false });
 const db = drizzle(client);
