@@ -42,7 +42,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} appeared in {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} features {object}',
     narrationWithAttributes: '{subject} played {attributes.character} in {object}',
   },
   aired_on: {
@@ -58,7 +58,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} aired on {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} aired {object}',
     narrationWithAttributes: null,
   },
   based_on: {
@@ -74,7 +74,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is based on {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} was adapted as {object}',
     narrationWithAttributes: null,
   },
   belongs_to_genre: {
@@ -90,7 +90,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: true,
     narration: '{subject} is a {object} film',
-    narrationInverse: null,
+    narrationInverse: '{subject} is a genre of {object}',
     narrationWithAttributes: null,
   },
   broader_than: {
@@ -106,7 +106,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is a broader concept than {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} is narrower than {object}',
     narrationWithAttributes: null,
   },
   composed_for: {
@@ -122,7 +122,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} composed the score for {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} was scored by {object}',
     narrationWithAttributes: null,
   },
   directed: {
@@ -138,7 +138,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} directed {object}',
-    narrationInverse: '{subject} was directed by {subject_of_inverse}',
+    narrationInverse: '{subject} was directed by {object}',
     narrationWithAttributes: null,
   },
   distributed_by: {
@@ -154,7 +154,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} was distributed by {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} distributed {object}',
     narrationWithAttributes: null,
   },
   episode_of: {
@@ -170,7 +170,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is an episode of {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} has episode {object}',
     narrationWithAttributes: null,
   },
   explores_theme: {
@@ -186,7 +186,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} explores {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} is explored by {object}',
     narrationWithAttributes: null,
   },
   features_character: {
@@ -202,7 +202,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} features the character {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} appears in {object}',
     narrationWithAttributes: null,
   },
   influenced_by: {
@@ -218,7 +218,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: true,
     excludedFromPathIntermediates: false,
     narration: '{subject} was influenced by {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} influenced {object}',
     narrationWithAttributes: null,
   },
   part_of_franchise: {
@@ -234,7 +234,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is part of {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} includes {object}',
     narrationWithAttributes: null,
   },
   portrayed_by: {
@@ -250,7 +250,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is portrayed by {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} portrays {object}',
     narrationWithAttributes: null,
   },
   produced_by: {
@@ -266,7 +266,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} was produced by {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} produced {object}',
     narrationWithAttributes: null,
   },
   remake_of: {
@@ -282,7 +282,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is a remake of {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} was remade as {object}',
     narrationWithAttributes: null,
   },
   season_of: {
@@ -298,7 +298,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is a season of {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} has season {object}',
     narrationWithAttributes: null,
   },
   sequel_to: {
@@ -314,7 +314,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is a sequel to {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} is followed by {object}',
     narrationWithAttributes: null,
   },
   shot: {
@@ -330,7 +330,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} was the cinematographer on {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} was shot by {object}',
     narrationWithAttributes: null,
   },
   similar_to: {
@@ -346,7 +346,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} is similar to {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} is similar to {object}',
     narrationWithAttributes: null,
   },
   wrote: {
@@ -362,7 +362,7 @@ export const PREDICATE_SPECS: Readonly<Record<Predicate, PredicateSpec>> = {
     sparse: false,
     excludedFromPathIntermediates: false,
     narration: '{subject} wrote {object}',
-    narrationInverse: null,
+    narrationInverse: '{subject} was written by {object}',
     narrationWithAttributes: null,
   },
 };

@@ -35,6 +35,9 @@ export const SESSION_GATED_API_ROUTES = [
   // Proxies TMDB. Open to the world it would be a free scraping endpoint for
   // someone else's rate limit, and ours to answer for. See docs/security.md.
   '/api/search',
+  // Typeahead over every graph node. Same reasoning as /api/search: it exposes
+  // the whole corpus, and there is no reason for it to answer strangers.
+  '/api/graph/search',
 ] as const;
 
 export const UNGATED_PREFIXES: readonly string[] = [

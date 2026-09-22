@@ -124,7 +124,7 @@ predicates:
     provenance: [asserted]
     path_weight: 1.0
     narration: '{subject} directed {object}'
-    narration_inverse: '{subject} was directed by {subject_of_inverse}'
+    narration_inverse: '{subject} was directed by {object}'
 
   acted_in:
     label: acted in
@@ -139,6 +139,7 @@ predicates:
       character_id: { type: uuid, nullable: true }
       billing_order: { type: integer, nullable: true }
     narration: '{subject} appeared in {object}'
+    narration_inverse: '{subject} features {object}'
     narration_with_attributes: '{subject} played {attributes.character} in {object}'
 
   wrote:
@@ -152,6 +153,7 @@ predicates:
     attributes:
       writing_role: { type: enum, values: [screenplay, story, novel, teleplay, adaptation] }
     narration: '{subject} wrote {object}'
+    narration_inverse: '{subject} was written by {object}'
 
   composed_for:
     label: composed the score for
@@ -162,6 +164,7 @@ predicates:
     provenance: [asserted]
     path_weight: 1.6
     narration: '{subject} composed the score for {object}'
+    narration_inverse: '{subject} was scored by {object}'
 
   shot:
     label: was cinematographer on
@@ -172,6 +175,7 @@ predicates:
     provenance: [asserted]
     path_weight: 1.6
     narration: '{subject} was the cinematographer on {object}'
+    narration_inverse: '{subject} was shot by {object}'
 
   portrayed_by:
     label: portrayed by
@@ -182,6 +186,7 @@ predicates:
     provenance: [asserted, curated]
     path_weight: 1.1
     narration: '{subject} is portrayed by {object}'
+    narration_inverse: '{subject} portrays {object}'
 
   features_character:
     label: features
@@ -192,6 +197,7 @@ predicates:
     provenance: [asserted, curated]
     path_weight: 1.3
     narration: '{subject} features the character {object}'
+    narration_inverse: '{subject} appears in {object}'
 
   belongs_to_genre:
     label: genre
@@ -204,6 +210,7 @@ predicates:
     hub_exempt: false
     excluded_from_path_intermediates: true
     narration: '{subject} is a {object} film'
+    narration_inverse: '{subject} is a genre of {object}'
 
   explores_theme:
     label: explores
@@ -217,6 +224,7 @@ predicates:
       salience: { type: number, min: 0, max: 1 }
       derived_from: { type: string, nullable: true }
     narration: '{subject} explores {object}'
+    narration_inverse: '{subject} is explored by {object}'
 
   broader_than:
     label: broader than
@@ -227,6 +235,7 @@ predicates:
     provenance: [curated]
     path_weight: 2.0
     narration: '{subject} is a broader concept than {object}'
+    narration_inverse: '{subject} is narrower than {object}'
 
   part_of_franchise:
     label: part of
@@ -237,6 +246,7 @@ predicates:
     provenance: [asserted, curated]
     path_weight: 1.1
     narration: '{subject} is part of {object}'
+    narration_inverse: '{subject} includes {object}'
 
   based_on:
     label: based on
@@ -247,6 +257,7 @@ predicates:
     provenance: [asserted, curated]
     path_weight: 1.2
     narration: '{subject} is based on {object}'
+    narration_inverse: '{subject} was adapted as {object}'
 
   sequel_to:
     label: sequel to
@@ -257,6 +268,7 @@ predicates:
     provenance: [curated]
     path_weight: 1.0
     narration: '{subject} is a sequel to {object}'
+    narration_inverse: '{subject} is followed by {object}'
 
   remake_of:
     label: remake of
@@ -267,6 +279,7 @@ predicates:
     provenance: [curated]
     path_weight: 1.2
     narration: '{subject} is a remake of {object}'
+    narration_inverse: '{subject} was remade as {object}'
 
   influenced_by:
     label: influenced by
@@ -278,6 +291,7 @@ predicates:
     path_weight: 1.5
     sparse: true
     narration: '{subject} was influenced by {object}'
+    narration_inverse: '{subject} influenced {object}'
 
   similar_to:
     label: similar to
@@ -292,6 +306,7 @@ predicates:
       score: { type: number, min: 0, max: 1 }
       method: { type: string }
     narration: '{subject} is similar to {object}'
+    narration_inverse: '{subject} is similar to {object}'
 
   produced_by:
     label: produced by
@@ -302,6 +317,7 @@ predicates:
     provenance: [asserted]
     path_weight: 3.8
     narration: '{subject} was produced by {object}'
+    narration_inverse: '{subject} produced {object}'
 
   distributed_by:
     label: distributed by
@@ -312,6 +328,7 @@ predicates:
     provenance: [asserted]
     path_weight: 4.2
     narration: '{subject} was distributed by {object}'
+    narration_inverse: '{subject} distributed {object}'
 
   aired_on:
     label: aired on
@@ -322,6 +339,7 @@ predicates:
     provenance: [asserted]
     path_weight: 3.5
     narration: '{subject} aired on {object}'
+    narration_inverse: '{subject} aired {object}'
 
   # Structural composition. Excluded from sem.edge entirely: including these would
   # let the path finder emit useless routes like "Arrival -> Drama -> some episode".
@@ -334,6 +352,7 @@ predicates:
     provenance: [asserted]
     structural: true
     narration: '{subject} is a season of {object}'
+    narration_inverse: '{subject} has season {object}'
 
   episode_of:
     label: episode of
@@ -344,6 +363,7 @@ predicates:
     provenance: [asserted]
     structural: true
     narration: '{subject} is an episode of {object}'
+    narration_inverse: '{subject} has episode {object}'
 
 # ---------------------------------------------------------------------------
 # Path ranking. See docs/graph.md and src/lib/graph/.

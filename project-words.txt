@@ -153,6 +153,7 @@ crosswalking
 cspell
 cyberpunk
 cytoscape
+deakins
 desaturated
 doppelganger
 dreamworks
@@ -173,6 +174,7 @@ graphology
 greppable
 hauntings
 imdb
+interestingness
 isekai
 jidaigeki
 kaiju
