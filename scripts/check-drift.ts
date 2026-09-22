@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 const ARTIFACTS = [
   'src/lib/ontology/generated.ts',
   'src/lib/ontology/vocabulary.ts',
+  'src/lib/ontology/metrics.ts',
   'drizzle/generated/ontology.sql',
   'docs/ontology-reference.md',
 ];

@@ -335,6 +335,68 @@ CREATE OR REPLACE VIEW sem.user_viewing AS
          t.title, t.kind, t.poster_path
   FROM usr.viewing v JOIN core.title t ON t.id = v.title_id;
 
+-- ── Taste ───────────────────────────────────────────────────────────────────
+--
+-- ONE definition behind five product features: favorite directors, most-watched
+-- actors, genre distribution, theme distribution, and the seeds a
+-- recommendation would start from. That is the semantic layer earning its keep
+-- -- without it each of those is its own four-table join, written slightly
+-- differently, drifting apart.
+--
+-- Affinity is not just a count. It blends three things:
+--   volume    ln(1 + n), so the tenth film by a director matters less than the
+--             second, and a single watch does not outrank a body of work;
+--   lift      how this node's ratings compare to the ACCOUNT'S OWN mean, so a
+--             generous rater and a harsh one get comparable numbers;
+--   recency   core.recency_decay, so what someone is watching now outweighs a
+--             phase they went through years ago.
+CREATE OR REPLACE VIEW sem.user_taste_affinity AS
+  WITH mean AS (
+    SELECT account_id, avg(rating) AS mean_rating
+    FROM sem.user_title
+    WHERE status = 'watched' AND rating IS NOT NULL
+    GROUP BY account_id
+  )
+  SELECT
+    ut.account_id,
+    e.object_type                                    AS node_type,
+    e.object_id                                      AS node_id,
+    e.predicate,
+    -- The canonical name, because the affinity row holds the INVERSE
+    -- (directed_by) while the person -> title edge holds the forward one
+    -- (directed). Coverage has to compare like with like: counting every edge
+    -- from a person to a title said Nolan had 44 films when he directed 19,
+    -- silently folding in his writing and producing credits.
+    e.canonical_predicate,
+    n.label,
+    n.slug,
+    n.image_path,
+    c.scheme,
+    count(*)::int                                    AS n_titles,
+    round(avg(ut.rating), 2)                         AS avg_rating,
+    max(ut.last_watched_on)                          AS last_watched_on,
+    -- ::numeric before round(): ln() returns double precision, and
+    -- round(double, int) does not exist in Postgres.
+    round(
+      (ln(1 + count(*))::numeric
+       * (1 + coalesce(avg(ut.rating) - min(m.mean_rating), 0) / 2)
+       * core.recency_decay(max(ut.updated_at)))
+    , 4)                                             AS affinity_score
+  FROM sem.user_title ut
+  JOIN sem.edge_bidirectional e
+    ON e.subject_type = 'title' AND e.subject_id = ut.title_id
+  JOIN sem.node n
+    ON n.node_type = e.object_type AND n.id = e.object_id
+  LEFT JOIN core.concept c ON c.id = e.object_id AND e.object_type = 'concept'
+  LEFT JOIN mean m ON m.account_id = ut.account_id
+  WHERE ut.status = 'watched'
+    -- The predicates a person would recognize as taste. similar_to is excluded
+    -- on purpose: it is derived FROM this kind of signal, so feeding it back in
+    -- would count the same evidence twice.
+    AND e.predicate IN ('directed_by', 'written_by', 'features_actor',
+                        'belongs_to_genre', 'explores_theme', 'part_of_franchise')
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9;
+
 -- ── Security ────────────────────────────────────────────────────────────────
 -- Set explicitly rather than at CREATE time: CREATE OR REPLACE VIEW cannot carry
 -- WITH options, and these files are re-run on every migration.
@@ -349,3 +411,4 @@ ALTER VIEW sem.user_title SET (security_invoker = true);
 ALTER VIEW sem.title_credit SET (security_invoker = true);
 ALTER VIEW sem.title_full SET (security_invoker = true);
 ALTER VIEW sem.user_viewing SET (security_invoker = true);
+ALTER VIEW sem.user_taste_affinity SET (security_invoker = true);

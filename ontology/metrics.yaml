@@ -44,6 +44,9 @@ metrics:
     grain: [account_id, rating]
     source: sem.user_title
     filter: "status = 'watched' AND rating IS NOT NULL"
+    # Stated explicitly, like every other non-label metric. Without it the
+    # resolver falls back to `label`, which sem.user_title does not have.
+    dimension: rating
     measure: count_distinct(title_id)
     transform: none
     viz: histogram

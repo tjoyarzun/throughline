@@ -7,16 +7,16 @@ two things connected?"_ with ranked, narrated paths through a knowledge graph.
 
 Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
 
-## Current phase: 5 — Personal tracking
+## Current phase: 7 — Sharing
 
-Phases 0-4 are complete. Search, title detail and person detail are live against a corpus of
-**4,972 titles** that is now identical in local and production, themes and Wikidata enrichment
-included. Auth works: invite-only email OTP, middleware, `/me`.
+Phases 0-6 are complete, plus the Universe. Search, title, person and Library are live
+against a corpus of **4,972 titles** identical in local and production. Tracking works:
+status, favorites, half-star ratings with history, viewing events. The Universe has its hub,
+Focus mode, the path finder, and `/universe/me` with five metrics resolved from
+`ontology/metrics.yaml`.
 
-**Phase 5 is what makes it worth opening daily.** Status lifecycle and event log, favorites,
-half-star ratings with history, viewing events, Library segments, Home. Until it lands,
-`/library` is a stub and nothing can be marked watched — that is expected, not a bug.
-The phase plan is in [docs/development-plan.md](docs/development-plan.md).
+**Phase 7 is sharing** — `usr.share` snapshots, the public `/s/[slug]` page, and dynamic
+OG images. It is the only surface a stranger can reach, so it is also the portfolio surface.
 
 **Three entity tables are legitimately empty, in both environments** — the code that fills them
 does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running ingest:

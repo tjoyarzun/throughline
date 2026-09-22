@@ -212,6 +212,7 @@ preds
 prerendered
 projectService
 qid
+regclass
 reified
 reimplementation
 reimplementing
