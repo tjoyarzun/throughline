@@ -109,6 +109,7 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     const [graph] = await sql<
       {
         people: number;
+        people_detailed: number;
         credits: number;
         edges: number;
         derived_edges: number;
@@ -122,6 +123,8 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       }[]
     >`
       SELECT (SELECT count(*)::int FROM core.person)       AS people,
+             (SELECT count(*)::int FROM core.person
+               WHERE detail_synced_at IS NOT NULL)          AS people_detailed,
              (SELECT count(*)::int FROM core.credit)       AS credits,
              (SELECT count(*)::int FROM core.edge)         AS edges,
              (SELECT count(*)::int FROM core.edge_derived) AS derived_edges,
