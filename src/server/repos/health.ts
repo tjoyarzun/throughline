@@ -12,11 +12,35 @@ import { themeCoverage } from '@/server/ingest/derive-themes';
  */
 
 /** Seconds after which a cron kind is stale. Roughly 2x its interval. */
-const MAX_AGE_S: Record<string, number> = {
-  drain: 300,
-  tmdb_changes: 172_800,
+/**
+ * How stale each job kind may get before something is actually wrong.
+ *
+ * Keys MUST be real job kinds. The first version had four entries of which
+ * two -- `drain` and `tmdb_changes` -- matched nothing: `drain` is the
+ * endpoint that RUNS jobs, not a job, and `tmdb_changes` was never built. A
+ * kind that never appears can never be stale, so those two rows monitored
+ * nothing while making the map look like coverage. tests/unit/health-cron
+ * now asserts every key against HANDLERS so a dead entry cannot be added back.
+ *
+ * The bounds are two days, not one, for everything the daily cron drives:
+ * Vercel Hobby cron is DAILY, so a one-day bound fires on ordinary jitter.
+ *
+ * The self-chaining walks are included deliberately. They are the ones that
+ * have broken before -- enqueue_job's dedupe once made a chaining job match
+ * itself, so every walk did exactly one batch and stopped -- and the symptom
+ * was a counter that quietly stopped climbing. A number nothing compares
+ * against is not a check.
+ */
+export const MAX_AGE_S: Record<string, number> = {
   refresh_degree: 172_800,
   housekeeping: 172_800,
+  refresh_stale: 172_800,
+  hydrate_title: 172_800,
+  hydrate_people: 172_800,
+  hydrate_episodes: 172_800,
+  derive_themes: 172_800,
+  enrich_wikidata: 172_800,
+  recompute_similar: 604_800, // weekly by design
 };
 
 /**
@@ -76,9 +100,20 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
   });
   const problems: string[] = [];
   try {
-    const [queue] = await sql<{ depth: number; oldest: number | null; failed_24h: number }[]>`
+    /**
+     * oldest_kind is not decoration. "job queue stalled (21600s)" says
+     * something is wedged and not which thing, which is the difference
+     * between a page you act on and a page you squint at. The self-chaining
+     * walks are the likely culprits and they are the ones whose name you
+     * need.
+     */
+    const [queue] = await sql<
+      { depth: number; oldest: number | null; oldest_kind: string | null; failed_24h: number }[]
+    >`
       SELECT count(*) FILTER (WHERE status = 'queued')::int AS depth,
              extract(epoch FROM now() - min(run_after) FILTER (WHERE status = 'queued'))::int AS oldest,
+             (SELECT kind FROM core.job WHERE status = 'queued'
+               ORDER BY run_after LIMIT 1) AS oldest_kind,
              count(*) FILTER (WHERE status = 'failed'
                               AND created_at > now() - interval '24 hours')::int AS failed_24h
       FROM core.job`;
@@ -149,7 +184,9 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     };
 
     if ((queue?.oldest ?? 0) > QUEUE_STALL_S)
-      problems.push(`job queue stalled (${queue!.oldest}s)`);
+      problems.push(
+        `job queue stalled: ${queue!.oldest_kind ?? 'unknown'} queued ${queue!.oldest}s`,
+      );
     if ((queue?.failed_24h ?? 0) > 0) problems.push(`${queue!.failed_24h} jobs failed in 24h`);
     for (const c of cronRows) {
       const max = MAX_AGE_S[c.kind];
