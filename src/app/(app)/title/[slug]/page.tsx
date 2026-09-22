@@ -82,7 +82,18 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
           <div className="h-8" />
         )}
 
-        <div className="-mt-16 flex items-end gap-4 px-4">
+        {/*
+          relative z-10 is load-bearing, not decoration.
+
+          The backdrop above is positioned, and a positioned element paints
+          over a non-positioned sibling regardless of document order. This row
+          is pulled up INTO the backdrop by -mt-16, so without its own stacking
+          position the backdrop covers it. The poster happened to survive
+          because it carries `relative` for its shadow; the title beside it did
+          not, so any title long enough to wrap grew upward and vanished behind
+          the image.
+        */}
+        <div className="relative z-10 -mt-16 flex items-end gap-4 px-4">
           <span
             className="relative block w-24 shrink-0 overflow-hidden"
             style={{

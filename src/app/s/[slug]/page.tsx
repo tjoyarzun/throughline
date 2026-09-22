@@ -100,7 +100,10 @@ export default async function SharePage({ params }: { params: Promise<{ slug: st
           />
         )}
 
-        <div className="-mt-12 flex items-end gap-4 px-4">
+        {/* Same stacking rule as the title page: the backdrop is positioned,
+            so this row needs its own position to paint above it. Without it
+            the hero covered the poster entirely. */}
+        <div className="relative z-10 -mt-12 flex items-end gap-4 px-4">
           <span
             className="block w-24 shrink-0 overflow-hidden"
             style={{
