@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { GraphNode, NeighborGroup } from '@/lib/graph/types';
-import { posterUrl, profileUrl } from '@/lib/tmdb-image';
+import { nodeImageUrl } from '@/lib/tmdb-image';
 
 /**
  * Focus mode: a DETERMINISTIC orbit, not a force-directed graph.
@@ -109,8 +109,7 @@ function CenterCard({ node }: { node: GraphNode }) {
 }
 
 function Thumb({ node }: { node: GraphNode }) {
-  const img =
-    node.type === 'person' ? profileUrl(node.imagePath, 96) : posterUrl(node.imagePath, 92);
+  const img = nodeImageUrl(node.type, node.imagePath, 92);
   return (
     <span
       className="relative block aspect-[2/3] w-full overflow-hidden"

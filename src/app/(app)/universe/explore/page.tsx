@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { graphEngine } from '@/lib/graph/postgres-engine';
 import { Orbit } from '@/components/graph/orbit';
 import { popularTitles } from '@/server/repos/titles';
+import { posterUrl } from '@/lib/tmdb-image';
 
 export const metadata = { title: 'Explore the graph' };
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,7 @@ async function StartHere() {
                 {t.poster_path && (
                   // eslint-disable-next-line @next/next/no-img-element -- TMDB CDN
                   <img
-                    src={`https://image.tmdb.org/t/p/w185${t.poster_path}`}
+                    src={posterUrl(t.poster_path, 92)}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover"

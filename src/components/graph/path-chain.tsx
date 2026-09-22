@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { GraphPath, GraphNode } from '@/lib/graph/types';
-import { posterUrl, profileUrl } from '@/lib/tmdb-image';
+import { nodeImageUrl } from '@/lib/tmdb-image';
 
 /**
  * A path rendered as a VERTICAL CHAIN, not a graph.
@@ -67,8 +67,7 @@ function NodeRow({ node }: { node: GraphNode }) {
       : node.type === 'person'
         ? `/person/${node.slug}`
         : `/universe/explore?focus=${node.type}:${node.id}`;
-  const img =
-    node.type === 'person' ? profileUrl(node.imagePath, 96) : posterUrl(node.imagePath, 92);
+  const img = nodeImageUrl(node.type, node.imagePath, 92);
 
   return (
     <Link href={href} className="flex items-center gap-3 py-1">
