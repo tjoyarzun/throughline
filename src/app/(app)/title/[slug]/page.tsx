@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { getTitleBySlug, getTitleByTmdbId } from '@/server/repos/titles';
 import { hydrateOnDemand } from '@/server/ingest/on-demand';
 import { Chip } from '@/components/ui/chip';
+import { PosterSkeleton } from '@/components/ui/skeleton';
 import { backdropUrl, posterUrl, profileUrl } from '@/lib/tmdb-image';
 import { TrackControls } from '@/components/tracking/track-controls';
 import { similarTitles } from '@/server/repos/titles';
@@ -48,11 +50,12 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
 
   // The page renders for signed-out visitors too (share links land here), so
   // the personal layer is fetched only when there is someone to fetch it for.
+  // Similar is deliberately NOT awaited here. It is an extra round trip that
+  // nothing above the fold needs, and awaiting it held the entire page --
+  // including the action row people came to tap -- behind it. It streams in
+  // below instead. See docs/performance-log.md.
   const accountId = await getAccountId();
-  const [tracked, similar] = await Promise.all([
-    accountId ? getUserTitle(accountId, t.id) : null,
-    similarTitles(t.id, 12),
-  ]);
+  const tracked = accountId ? await getUserTitle(accountId, t.id) : null;
 
   return (
     <article className="-mx-4 flex flex-col gap-8">
@@ -251,46 +254,9 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
           </Section>
         )}
 
-        {similar.length > 0 && (
-          <Section title="Similar">
-            <ul className="flex gap-3 overflow-x-auto pb-2">
-              {similar.map((sim) => (
-                <li key={sim.id} className="w-[104px] shrink-0">
-                  <Link href={`/title/${sim.slug}`} className="flex flex-col gap-2">
-                    <span
-                      className="relative block aspect-[2/3] w-full overflow-hidden"
-                      style={{
-                        borderRadius: 'var(--radius-poster)',
-                        background: 'var(--tl-surface-2)',
-                        boxShadow: 'inset 0 0 0 1px var(--tl-poster-inset)',
-                      }}
-                    >
-                      {sim.poster_path && (
-                        // eslint-disable-next-line @next/next/no-img-element -- TMDB CDN
-                        <img
-                          src={posterUrl(sim.poster_path, 160)}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                        />
-                      )}
-                    </span>
-                    <span className="line-clamp-2 text-xs leading-tight">{sim.title}</span>
-                    {/* The REASON is the point. A similarity you cannot explain
-                        is indistinguishable from a guess, and the whole claim
-                        of this project is that the ontology can explain it. */}
-                    <span
-                      className="text-[10px] uppercase tracking-wide"
-                      style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
-                    >
-                      {sim.reason}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
+        <Suspense fallback={<SimilarFallback />}>
+          <SimilarStrip titleId={t.id} />
+        </Suspense>
 
         <footer className="pt-2 text-xs" style={{ color: 'var(--tl-text-faint)' }}>
           Data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.
@@ -311,5 +277,65 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </h2>
       {children}
     </section>
+  );
+}
+
+/** Streams in after the page shell; never blocks the action row. */
+async function SimilarStrip({ titleId }: { titleId: string }) {
+  const similar = await similarTitles(titleId, 12);
+  if (similar.length === 0) return null;
+  return (
+    <Section title="Similar">
+      <ul className="flex gap-3 overflow-x-auto pb-2">
+        {similar.map((sim) => (
+          <li key={sim.id} className="w-[104px] shrink-0">
+            <Link href={`/title/${sim.slug}`} className="flex flex-col gap-2">
+              <span
+                className="relative block aspect-[2/3] w-full overflow-hidden"
+                style={{
+                  borderRadius: 'var(--radius-poster)',
+                  background: 'var(--tl-surface-2)',
+                  boxShadow: 'inset 0 0 0 1px var(--tl-poster-inset)',
+                }}
+              >
+                {sim.poster_path && (
+                  // eslint-disable-next-line @next/next/no-img-element -- TMDB CDN
+                  <img
+                    src={posterUrl(sim.poster_path, 160)}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                )}
+              </span>
+              <span className="line-clamp-2 text-xs leading-tight">{sim.title}</span>
+              {/* The REASON is the point. A similarity you cannot explain is
+                  indistinguishable from a guess. */}
+              <span
+                className="text-[10px] uppercase tracking-wide"
+                style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+              >
+                {sim.reason}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+/** Exact dimensions of the real strip, so streaming it in shifts nothing. */
+function SimilarFallback() {
+  return (
+    <Section title="Similar">
+      <ul className="flex gap-3 overflow-x-auto pb-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <li key={i} className="w-[104px] shrink-0">
+            <PosterSkeleton width="100%" />
+          </li>
+        ))}
+      </ul>
+    </Section>
   );
 }
