@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import { graphEngine } from '@/lib/graph/postgres-engine';
 import { Orbit } from '@/components/graph/orbit';
-import { popularTitles } from '@/server/repos/titles';
+import { popularTitles, titlesByTmdbIds, type TitleSummary } from '@/server/repos/titles';
+import { trending } from '@/server/providers/tmdb/discovery';
+import { getAccountId } from '@/server/auth/session';
+import { listLibrary } from '@/server/repos/user';
 import { posterUrl } from '@/lib/tmdb-image';
 
 export const metadata = { title: 'Explore the graph' };
@@ -31,9 +34,25 @@ export default async function ExplorePage({
   );
 }
 
-/** Never an empty canvas: offer somewhere to start walking from. */
+/**
+ * Somewhere to start walking from -- and it has to change.
+ *
+ * This used to be popularTitles(12): the corpus ranked by a stored popularity
+ * that is a seed snapshot, which made it the same twelve posters forever under
+ * a page inviting you to explore. Two independent sources now move it:
+ *
+ *   what you have been watching, which changes as you use the app and is the
+ *   most interesting place to start walking from anyway -- your own universe
+ *   is the part of the graph you have opinions about;
+ *
+ *   what is trending today, intersected with the corpus, because a seed has
+ *   to BE a node. A trending title we have never ingested has nothing to
+ *   focus on, so it is filtered out here rather than rendered as a dead link.
+ *
+ * Popularity remains as the floor, for a brand-new account on a cold cache.
+ */
 async function StartHere() {
-  const seeds = await popularTitles(12);
+  const seeds = await exploreSeeds(12);
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
@@ -74,4 +93,45 @@ async function StartHere() {
       </ul>
     </div>
   );
+}
+
+async function exploreSeeds(limit: number): Promise<TitleSummary[]> {
+  const out: TitleSummary[] = [];
+  const seen = new Set<string>();
+  const add = (rows: TitleSummary[]) => {
+    for (const r of rows) {
+      if (out.length >= limit || seen.has(r.id)) continue;
+      seen.add(r.id);
+      out.push(r);
+    }
+  };
+
+  const accountId = await getAccountId();
+  if (accountId) {
+    const mine = await listLibrary(accountId, { sort: 'added', limit: 6 });
+    add(
+      mine
+        .filter((m) => m.poster_path)
+        .map((m) => ({
+          id: m.title_id,
+          slug: m.slug,
+          kind: m.kind,
+          title: m.title,
+          release_year: m.release_year,
+          poster_path: m.poster_path,
+          popularity: null,
+          genres: m.genres ?? [],
+          tmdb_id: null,
+        })),
+    );
+  }
+
+  try {
+    add(await titlesByTmdbIds((await trending(24)).map((t) => t.tmdbId)));
+  } catch {
+    // The provider being down is not a reason to have nowhere to start.
+  }
+
+  if (out.length < limit) add(await popularTitles(limit));
+  return out.slice(0, limit);
 }

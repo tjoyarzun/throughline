@@ -147,7 +147,14 @@ export async function localByTmdbIds(ids: number[]): Promise<Map<string, LocalMa
   return new Map(rows.map((r) => [`${r.kind}:${r.tmdb_id}`, r]));
 }
 
-/** Trending, for the empty search state — something to show before typing. */ /** Trending, for the empty search state — something to show before typing. */
+/**
+ * The corpus ranked by stored popularity.
+ *
+ * No longer what the search page leads with -- that is live TMDB trending
+ * now -- because this value is a seed snapshot and the ranking it produces is
+ * frozen. It survives as the FALLBACK for when the provider is unreachable,
+ * where a stale list beats an empty one.
+ */
 export async function popularTitles(limit = 18): Promise<TitleSummary[]> {
   return db()<TitleSummary[]>`
     SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres, NULL AS tmdb_id
@@ -308,4 +315,22 @@ export async function availabilityFor(
     rent: bucket(['rent']),
     buy: bucket(['buy']),
   };
+}
+
+/**
+ * Full rows for titles we hold, given provider ids, in the order asked for.
+ *
+ * localByTmdbIds answers "do we have this" with just enough to build a link;
+ * this answers "show me these" and carries the poster. Order is preserved
+ * because the caller's order is usually the point -- a trending list rendered
+ * alphabetically is not a trending list.
+ */
+export async function titlesByTmdbIds(ids: number[]): Promise<TitleSummary[]> {
+  if (ids.length === 0) return [];
+  const rows = await db()<TitleSummary[]>`
+    SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres, tmdb_id
+    FROM sem.title
+    WHERE tmdb_id = ANY(${ids.map(String)}) AND poster_path IS NOT NULL`;
+  const byTmdb = new Map(rows.map((r) => [String(r.tmdb_id), r]));
+  return ids.map((id) => byTmdb.get(String(id))).filter((r): r is TitleSummary => Boolean(r));
 }

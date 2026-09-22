@@ -10,9 +10,12 @@ what**. Phase 10 shipped; everything here is Phase 2 in the spec's numbering.
 
 ## Already done — close it in Asana
 
-| Asana            | Item        | Evidence                                                                                                                                                                                                                                        |
-| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1217469158076975 | Admin panel | Shipped 2026-09-22. `/me` shows every user with watched / rated / episode counts, last sign-in and login-day streak; expands to active devices with revoke; mints invites and a share link carrying the code. All four sub-bullets are covered. |
+| Asana            | Item                        | Evidence                                                                                                                                                                                                                                        |
+| ---------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1217468989312582 | Availability + release date | Shipped 2026-09-22. Stream/Free/Rent/Buy on the title page in the account's region, a Streaming sort in Library, full JustWatch attribution. Theatrical is explicitly not claimed — see docs/attribution.md.                                    |
+| 1217468989312579 | Popular right now is frozen | Shipped 2026-09-22. Live TMDB trending (daily window, 6h cache), merged with the corpus so held titles link to their real page and the rest hydrate on open. Falls back to the old stored ranking when the provider is unreachable.             |
+| 1217468989312584 | Enhance explore the graph   | Shipped 2026-09-22 — the "does this list ever update" half. Seeds now come from your own library first, then trending intersected with the corpus, with stored popularity as the floor. The constellation half remains, grouped under item 4.   |
+| 1217469158076975 | Admin panel                 | Shipped 2026-09-22. `/me` shows every user with watched / rated / episode counts, last sign-in and login-day streak; expands to active devices with revoke; mints invites and a share link carrying the code. All four sub-bullets are covered. |
 
 ## Verified before ordering
 

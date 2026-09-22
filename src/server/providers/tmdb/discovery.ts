@@ -16,6 +16,8 @@ const TTL_SECONDS = 6 * 60 * 60;
 
 const listItem = z.object({
   id: z.number(),
+  /** Only /trending returns this; discover endpoints are already type-scoped. */
+  media_type: z.string().optional(),
   title: z.string().optional(),
   name: z.string().optional(),
   release_date: z.string().optional(),
@@ -123,5 +125,41 @@ export async function upcoming(limit = 12): Promise<DiscoveryItem[]> {
   return [...movies, ...shows]
     .filter((r) => r.date)
     .sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : b.popularity - a.popularity))
+    .slice(0, limit);
+}
+
+/**
+ * Trending, straight from TMDB.
+ *
+ * The rail this feeds used to rank the LOCAL corpus by a stored popularity
+ * value, and that value was a seed snapshot -- 4,969 of 4,990 titles stamped
+ * the same day. The list was deterministic and frozen: the same eighteen
+ * posters forever, under a heading that said "right now".
+ *
+ * The daily window rather than weekly, because the heading makes a claim and
+ * the data should match it. Six hours of cache does not undermine that: the
+ * underlying window is already a day, so caching within it changes nothing
+ * about what is being said.
+ *
+ * /trending/all mixes people in with titles, so they are filtered out here --
+ * a person in a grid of posters is not an answer to "what should I watch".
+ */
+export async function trending(limit = 18): Promise<DiscoveryItem[]> {
+  const client = new TmdbClient();
+  const raw = await client.trending('day', TTL_SECONDS);
+  const parsed = listResponse.safeParse(raw);
+  if (!parsed.success) return [];
+
+  return parsed.data.results
+    .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+    .map((r) => ({
+      tmdbId: r.id,
+      kind: (r.media_type === 'tv' ? 'show' : 'movie') as 'movie' | 'show',
+      title: r.title ?? r.name ?? '',
+      date: r.release_date || r.first_air_date || null,
+      posterPath: r.poster_path ?? null,
+      popularity: r.popularity ?? 0,
+    }))
+    .filter((r) => r.title && r.posterPath)
     .slice(0, limit);
 }

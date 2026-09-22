@@ -30,10 +30,16 @@ interface RemoteResult {
  * after a fast one for "arrival" and overwrite it.
  */
 export function SearchClient({
-  initial,
+  initial = [],
   idle,
 }: {
-  initial: LocalResult[];
+  /**
+   * Local rows to show before anything is typed. Empty now that the idle page
+   * leads with live trending instead of a frozen popularity ranking -- kept as
+   * a prop because the shape is still the right one if a local list ever
+   * belongs here again.
+   */
+  initial?: LocalResult[];
   /**
    * Server-rendered sections shown only when the box is empty. Passed in
    * rather than fetched here so the discovery lists stay on the server, where
@@ -104,43 +110,38 @@ export function SearchClient({
 
       {!showing && idle}
 
-      {!showing && (
-        <p
-          className="text-xs uppercase tracking-widest"
-          style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
-        >
-          Popular right now
-        </p>
-      )}
-
       {showing && results.length === 0 && remoteResults.length === 0 && !loading && (
         <p className="py-8 text-center text-sm" style={{ color: 'var(--tl-text-dim)' }}>
           Nothing matches “{q.trim()}”.
         </p>
       )}
 
-      <ul className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-6">
-        {results.map((t) => (
-          <li key={t.id}>
-            <Link href={`/title/${t.slug}`} className="group flex flex-col gap-2">
-              <Poster path={t.poster_path} alt="" />
-              <span className="line-clamp-2 text-sm leading-tight">{t.title}</span>
-              {t.release_year && (
-                <span className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
-                  {t.release_year}
-                </span>
-              )}
-            </Link>
-          </li>
-        ))}
-        {loading &&
-          results.length === 0 &&
-          [0, 1, 2, 3, 4, 5].map((i) => (
-            <li key={`s${i}`}>
-              <PosterSkeleton width="100%" />
+      {/* Rendered only when it has something in it. An empty grid left in the
+          tree is an empty list in the accessibility tree too. */}
+      {(results.length > 0 || loading) && (
+        <ul className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-6">
+          {results.map((t) => (
+            <li key={t.id}>
+              <Link href={`/title/${t.slug}`} className="group flex flex-col gap-2">
+                <Poster path={t.poster_path} alt="" />
+                <span className="line-clamp-2 text-sm leading-tight">{t.title}</span>
+                {t.release_year && (
+                  <span className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
+                    {t.release_year}
+                  </span>
+                )}
+              </Link>
             </li>
           ))}
-      </ul>
+          {loading &&
+            results.length === 0 &&
+            [0, 1, 2, 3, 4, 5].map((i) => (
+              <li key={`s${i}`}>
+                <PosterSkeleton width="100%" />
+              </li>
+            ))}
+        </ul>
+      )}
 
       {remoteResults.length > 0 && (
         <section className="flex flex-col gap-3">

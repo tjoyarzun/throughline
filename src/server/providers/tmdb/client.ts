@@ -282,6 +282,17 @@ export class TmdbClient {
     return this.request('/discover/movie', params);
   }
 
+  /**
+   * What is actually trending on TMDB right now.
+   *
+   * Cached but never captured to raw and never written to core: a ranking is
+   * not a fact about a film, it is a fact about this week's attention, and
+   * storing it would be the same mistake as modeling availability as an edge.
+   */
+  async trending(window: 'day' | 'week', revalidate: number): Promise<unknown> {
+    return this.request(`/trending/all/${window}`, {}, revalidate);
+  }
+
   /** Volatile discovery lists. Cached, never captured to raw, never stored. */
   async discoverCached(
     path: '/discover/movie' | '/discover/tv',
