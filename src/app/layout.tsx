@@ -5,7 +5,26 @@ export const metadata: Metadata = {
   title: { default: 'Throughline', template: '%s · Throughline' },
   description: 'A media tracker that understands how things connect.',
   applicationName: 'Throughline',
-  appleWebApp: { capable: true, title: 'Throughline', statusBarStyle: 'black-translucent' },
+  /**
+   * statusBarStyle 'default', NOT 'black-translucent'.
+   *
+   * black-translucent extends the web view UNDER the status bar and makes it
+   * the page's job to pad it back. Nothing did, so on an installed iPhone the
+   * first line of every screen sat beneath the clock. It also forces white
+   * status-bar text, which is unreadable in light mode. 'default' has iOS
+   * inset the view and fill the bar with themeColor.
+   *
+   * The shell still pads by env(safe-area-inset-top) as well -- that is zero
+   * here and non-zero in a browser tab, and being right in both is cheap.
+   */
+  appleWebApp: { capable: true, title: 'Throughline', statusBarStyle: 'default' },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-icon-180.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {
