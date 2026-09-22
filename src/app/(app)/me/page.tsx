@@ -54,11 +54,11 @@ export default async function MePage() {
           Coming next
         </h2>
         <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
-          Search and title pages arrive in the next phase, and this is where data export, theme,
-          region and household settings will live.
+          This is where data export, theme, region and household settings will live. Sharing and
+          episode tracking are the next things being built.
         </p>
         <div className="flex flex-wrap gap-2">
-          {['Search', 'Library', 'Ratings', 'Sharing', 'The Universe'].map((f) => (
+          {['Sharing', 'Episodes', 'Data export', 'Households', 'Offline'].map((f) => (
             <Chip key={f} variant="provenance">
               {f}
             </Chip>

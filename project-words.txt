@@ -173,6 +173,7 @@ glassmorphic
 graphology
 greppable
 hauntings
+headshot
 imdb
 interestingness
 isekai
