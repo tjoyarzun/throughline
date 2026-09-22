@@ -7,9 +7,11 @@ import {
   tmdbShow,
   tmdbSeasonDetail,
   tmdbPerson,
+  tmdbWatchProviders,
   type TmdbMovie,
   type TmdbShow,
   type TmdbPerson,
+  type TmdbWatchProviders,
 } from '../providers/tmdb/schemas';
 
 /**
@@ -162,6 +164,85 @@ export class Ingestor {
    * ingest would add one request per cast member, turning a single film into
    * thirty. It runs when someone actually opens a person page.
    */
+  /**
+   * Where a title can be watched, per region.
+   *
+   * Deliberately NOT edges. Availability is regional and changes weekly, so
+   * putting it in core.edge would make the graph a different shape in Germany
+   * than in the US and a different shape next Tuesday -- which would make path
+   * finding non-deterministic for reasons that have nothing to do with the
+   * ontology (ADR 0007). It lives in its own table with a validity window.
+   *
+   * Only regions somebody actually uses are stored. TMDB answers for ~90
+   * territories; writing all of them would multiply the table by ninety to
+   * serve a household that has only ever asked about one.
+   *
+   * Rows are closed, not deleted. When a title leaves a service the row gets
+   * valid_to = now() rather than vanishing, because "left Netflix in March" is
+   * a question the data should be able to answer and a DELETE cannot.
+   */
+  async syncAvailability(
+    kind: 'movie' | 'show',
+    tmdbId: number,
+    titleId: string,
+    regions: string[],
+  ): Promise<number> {
+    if (regions.length === 0) return 0;
+
+    const payload = (await this.tmdb.watchProviders(
+      kind,
+      tmdbId,
+      tmdbWatchProviders,
+    )) as TmdbWatchProviders | null;
+    if (!payload) return 0;
+
+    const OFFER_TYPES = ['flatrate', 'free', 'ads', 'rent', 'buy'] as const;
+    const observed = new Date();
+    let written = 0;
+
+    for (const region of regions) {
+      const forRegion = payload.results[region];
+      if (!forRegion) {
+        // No offers at all here. Close whatever we believed before, or the
+        // page keeps advertising a service the title has left.
+        await this.sql`
+          UPDATE core.availability SET valid_to = ${observed}
+          WHERE title_id = ${titleId} AND region = ${region} AND valid_to IS NULL`;
+        continue;
+      }
+
+      for (const offerType of OFFER_TYPES) {
+        for (const offer of forRegion[offerType]) {
+          const orgId = await this.upsertOrganization(
+            offer.provider_id,
+            offer.provider_name,
+            'streamer',
+            offer.logo_path,
+            null,
+          );
+          await this.sql`
+            INSERT INTO core.availability
+              (title_id, organization_id, region, offer_type, link, observed_at, valid_to)
+            VALUES (${titleId}, ${orgId}, ${region}, ${offerType},
+                    ${forRegion.link}, ${observed}, NULL)
+            ON CONFLICT (title_id, organization_id, region, offer_type)
+            DO UPDATE SET link = excluded.link,
+                          observed_at = excluded.observed_at,
+                          valid_to = NULL`;
+          written++;
+        }
+      }
+
+      // Anything in this region we did not just see is gone.
+      await this.sql`
+        UPDATE core.availability SET valid_to = ${observed}
+        WHERE title_id = ${titleId} AND region = ${region}
+          AND valid_to IS NULL AND observed_at < ${observed}`;
+    }
+
+    return written;
+  }
+
   async hydratePerson(tmdbId: number): Promise<boolean> {
     const p = (await this.tmdb.person(tmdbId, tmdbPerson)) as TmdbPerson | null;
     if (!p) return false;

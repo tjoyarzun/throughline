@@ -241,6 +241,40 @@ export const tmdbPerson = z.object({
   imdb_id: nullableString,
 });
 
+/**
+ * Watch providers, per region.
+ *
+ * TMDB sources this from JustWatch, which is why every surface that renders it
+ * carries the JustWatch mark and the region link -- see docs/attribution.md.
+ *
+ * `results` is keyed by ISO-3166-1 region and passthrough rather than a fixed
+ * shape: TMDB covers ~90 territories and adds more, and a strict object would
+ * turn a new country into a parse failure on a page that just wanted to know
+ * where to watch something in the US.
+ */
+const tmdbProviderOffer = z.object({
+  provider_id: z.number(),
+  provider_name: z.string(),
+  logo_path: nullableString,
+  display_priority: nullableNumber,
+});
+
+export const tmdbWatchProviders = z.object({
+  id: z.number(),
+  results: z.record(
+    z.string(),
+    z.object({
+      /** JustWatch-backed page for this title in this region. Required for attribution. */
+      link: nullableString,
+      flatrate: z.array(tmdbProviderOffer).default([]),
+      free: z.array(tmdbProviderOffer).default([]),
+      ads: z.array(tmdbProviderOffer).default([]),
+      rent: z.array(tmdbProviderOffer).default([]),
+      buy: z.array(tmdbProviderOffer).default([]),
+    }),
+  ),
+});
+
 export const tmdbPaged = <T extends z.ZodTypeAny>(item: T) =>
   z.object({
     page: z.number(),
@@ -260,4 +294,5 @@ export const tmdbListItem = z.object({
 export type TmdbMovie = z.infer<typeof tmdbMovie>;
 export type TmdbShow = z.infer<typeof tmdbShow>;
 export type TmdbPerson = z.infer<typeof tmdbPerson>;
+export type TmdbWatchProviders = z.infer<typeof tmdbWatchProviders>;
 export type TmdbCredits = z.infer<typeof tmdbCredits>;

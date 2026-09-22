@@ -193,6 +193,61 @@ export const HANDLERS: Record<string, Handler> = {
     }
   },
 
+  /**
+   * Refresh where things can be watched.
+   *
+   * Scoped to titles somebody actually tracks, not the whole corpus. 4,990
+   * titles times a provider call every few days is a lot of someone else's
+   * quota spent on films nobody in this household has expressed any interest
+   * in; the watchlist is precisely the set where "where can I watch this"
+   * gets asked.
+   *
+   * Oldest-first so the walk cannot starve a title: ordering by anything else
+   * lets a popular row get refreshed repeatedly while another is never
+   * reached.
+   */
+  refresh_availability: async (sql, payload) => {
+    const batch = Math.min(Number(payload.batch ?? 30), 100);
+
+    const regionRows = await sql<{ region: string }[]>`
+      SELECT DISTINCT region FROM usr.account WHERE deleted_at IS NULL AND region IS NOT NULL`;
+    const regions = regionRows.map((r) => r.region.trim().toUpperCase()).filter(Boolean);
+    if (regions.length === 0) return;
+
+    const rows = await sql<{ id: string; tmdb_id: string; kind: string }[]>`
+      SELECT t.id, x.source_id AS tmdb_id, t.kind
+      FROM core.title t
+      JOIN core.external_id x
+        ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source = 'tmdb'
+      WHERE EXISTS (SELECT 1 FROM usr.title_state ts WHERE ts.title_id = t.id)
+      ORDER BY (
+        SELECT max(a.observed_at) FROM core.availability a WHERE a.title_id = t.id
+      ) ASC NULLS FIRST
+      LIMIT ${batch}`;
+    if (rows.length === 0) return;
+
+    const ing = new Ingestor(sql, new TmdbClient(undefined, captureRaw(sql)));
+    for (const r of rows) {
+      const tmdbId = Number(r.tmdb_id);
+      if (!Number.isFinite(tmdbId)) continue;
+      await ing.syncAvailability(r.kind === 'show' ? 'show' : 'movie', tmdbId, r.id, regions);
+    }
+
+    /* Chain only while something is genuinely stale. Chaining on "rows
+       returned" would loop forever the moment the tracked set is smaller than
+       one batch, re-fetching the same titles until the drain budget ran out. */
+    const [stale] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM core.title t
+      WHERE EXISTS (SELECT 1 FROM usr.title_state ts WHERE ts.title_id = t.id)
+        AND coalesce(
+              (SELECT max(a.observed_at) FROM core.availability a WHERE a.title_id = t.id),
+              'epoch'::timestamptz
+            ) < now() - interval '3 days'`;
+    if ((stale?.n ?? 0) > 0) {
+      await sql`SELECT core.enqueue_job('refresh_availability', ${sql.json({ batch } as never)})`;
+    }
+  },
+
   /** Nightly. Node degree drives the hub penalty in path ranking. */
   refresh_degree: async (sql) => {
     await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY core.node_degree`;

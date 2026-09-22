@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAccountId } from '@/server/auth/session';
-import { libraryCounts, listLibrary, type LibrarySort } from '@/server/repos/user';
+import { libraryCounts, listLibrary, accountRegion, type LibrarySort } from '@/server/repos/user';
 import type { Status } from '@/lib/tracking';
 import { posterUrl } from '@/lib/tmdb-image';
 import { StarRating } from '@/components/tracking/star-rating';
@@ -22,6 +22,7 @@ const SORTS: { key: LibrarySort; label: string }[] = [
   { key: 'title', label: 'A–Z' },
   { key: 'release', label: 'Released' },
   { key: 'runtime', label: 'Shortest' },
+  { key: 'streaming', label: 'Streaming' },
 ];
 
 /** Distinct and actionable per segment — never a shrug. */
@@ -53,6 +54,7 @@ export default async function LibraryPage({
     listLibrary(accountId, {
       ...(favoritesOnly ? { favoritesOnly: true } : { status: segment as Status }),
       sort,
+      region: await accountRegion(accountId),
     }),
   ]);
 

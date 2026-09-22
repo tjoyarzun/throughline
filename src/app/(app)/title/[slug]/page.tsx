@@ -11,6 +11,9 @@ import { ShareButton } from '@/components/tracking/share-button';
 import { similarTitles } from '@/server/repos/titles';
 import { seasonsForTitle } from '@/server/repos/episodes';
 import { getAccountId } from '@/server/auth/session';
+import { WhereToWatch } from '@/components/media/where-to-watch';
+import { availabilityFor } from '@/server/repos/titles';
+import { accountRegion } from '@/server/repos/user';
 import { getUserTitle } from '@/server/repos/user';
 
 export const dynamic = 'force-dynamic';
@@ -120,7 +123,11 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
               style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
             >
               {[
-                t.release_year,
+                /* Movies show the full date -- "when did this come out" is a
+                   real question and the year alone does not answer it for
+                   anything recent. Shows keep the year: a series is a range,
+                   and its first-air date reads as precision it does not have. */
+                t.kind === 'movie' ? releaseDate(t.release_date) : t.release_year,
                 t.runtime_minutes ? `${t.runtime_minutes} min` : null,
                 t.kind === 'show' ? 'Series' : null,
                 t.certification,
@@ -280,6 +287,10 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
             <Seasons accountId={accountId} titleId={t.id} slug={t.slug} />
           </Suspense>
         )}
+
+        <Suspense fallback={null}>
+          <Watch titleId={t.id} accountId={accountId} />
+        </Suspense>
 
         <Suspense fallback={<SimilarFallback />}>
           <SimilarStrip titleId={t.id} />
@@ -448,4 +459,34 @@ function ProgressRing({ pct }: { pct: number }) {
       </svg>
     </span>
   );
+}
+
+/**
+ * Availability, in the viewer's own region.
+ *
+ * Region comes from the account rather than a header or an IP guess: it is a
+ * stated preference, it is already a column, and guessing it from an address
+ * gets a traveler wrong in exactly the moment they are most likely to ask.
+ * Signed-out viewers never reach this page, so there is no anonymous default
+ * to invent.
+ */
+async function Watch({ titleId, accountId }: { titleId: string; accountId: string | null }) {
+  if (!accountId) return null;
+  const region = await accountRegion(accountId);
+  return <WhereToWatch availability={await availabilityFor(titleId, region)} />;
+}
+
+/**
+ * "November 11, 2016".
+ *
+ * Note this is TMDB's PRIMARY release date, not a per-territory theatrical
+ * one. A true US theatrical date needs /movie/{id}/release_dates, which is a
+ * separate call and a separate table; calling this "US release date" without
+ * it would be a claim we cannot support. Recorded in docs/backlog.md.
+ */
+function releaseDate(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }

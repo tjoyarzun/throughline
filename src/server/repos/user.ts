@@ -280,7 +280,7 @@ export async function removeFromLibrary(accountId: string, titleId: string): Pro
   });
 }
 
-export type LibrarySort = 'added' | 'rating' | 'title' | 'release' | 'runtime';
+export type LibrarySort = 'added' | 'rating' | 'title' | 'release' | 'runtime' | 'streaming';
 
 export interface LibraryItem extends UserTitle {
   slug: string;
@@ -301,10 +301,17 @@ export interface LibraryItem extends UserTitle {
  */
 export async function listLibrary(
   accountId: string,
-  opts: { status?: Status; favoritesOnly?: boolean; sort?: LibrarySort; limit?: number } = {},
+  opts: {
+    status?: Status;
+    favoritesOnly?: boolean;
+    sort?: LibrarySort;
+    limit?: number;
+    region?: string;
+  } = {},
 ): Promise<LibraryItem[]> {
   const sort = opts.sort ?? 'added';
   const limit = opts.limit ?? 200;
+  const region = (opts.region ?? 'US').toUpperCase();
   return withUser(accountId, async (tx) => {
     // Sort is a closed set mapped to fixed SQL; the value never reaches the
     // query as text. See docs/security.md on dynamic SQL.
@@ -314,6 +321,16 @@ export async function listLibrary(
       title: sql`t.title ASC`,
       release: sql`t.release_date DESC NULLS LAST`,
       runtime: sql`t.runtime_minutes ASC NULLS LAST`,
+      /* "What can I actually put on right now." Only the subscription-like
+         offers count -- rent and buy are available for almost everything, so
+         including them would sort nothing. */
+      streaming: sql`
+        EXISTS (
+          SELECT 1 FROM sem.availability a
+          WHERE a.title_id = ut.title_id AND a.region = ${region}
+            AND a.offer_type IN ('flatrate', 'free', 'ads')
+        ) DESC,
+        ut.added_at DESC`,
     }[sort];
 
     return rows<LibraryItem>(
@@ -398,4 +415,22 @@ export async function libraryCounts(accountId: string): Promise<Record<string, n
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * The account's region, for availability.
+ *
+ * Falls back to US rather than throwing: a missing region should narrow what
+ * we can tell someone, not break their title page. The column is NOT NULL
+ * with a default today, so the fallback is for the case where it stops being.
+ */
+export async function accountRegion(accountId: string): Promise<string> {
+  const rows = await withUser(
+    accountId,
+    async (tx) =>
+      (await tx.execute(
+        sql`SELECT region FROM usr.account WHERE id = ${accountId}::uuid`,
+      )) as unknown as { region: string | null }[],
+  );
+  return (rows[0]?.region ?? 'US').trim().toUpperCase() || 'US';
 }

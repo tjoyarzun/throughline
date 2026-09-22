@@ -238,6 +238,33 @@ export class TmdbClient {
     );
   }
 
+  /**
+   * Where a title can be watched, by region.
+   *
+   * Not captured to raw, unlike movie/show/person. raw exists so stored facts
+   * can be re-derived when our interpretation of them changes; availability is
+   * not a fact about the work, it is a fact about this week in this territory.
+   * Its history lives in core.availability's observed_at and valid_to, which
+   * is the shape that can actually answer "when did this leave Netflix".
+   *
+   * Cached for 12 hours: the data changes weekly at best, and a title page
+   * should not spend a provider call on it every render.
+   */
+  async watchProviders(kind: 'movie' | 'show', id: number, schema: z.ZodTypeAny) {
+    const path = `/${kind === 'show' ? 'tv' : 'movie'}/${id}/watch/providers`;
+    const raw = await this.request(path, {}, 43_200);
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      throw new TmdbError(
+        `TMDB response failed validation at ${issue?.path.join('.') ?? '?'}: ${issue?.message}`,
+        502,
+        path,
+      );
+    }
+    return parsed.data as unknown;
+  }
+
   /** List endpoints are not captured to raw: they are volatile rankings, not facts. */
   async list(path: string, page: number): Promise<unknown> {
     return this.request(path, { page: String(page) });

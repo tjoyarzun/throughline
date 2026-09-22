@@ -108,6 +108,32 @@ test.describe('accessibility — signed in', () => {
     });
   }
 
+  /**
+   * Attribution is ship-blocking, not cosmetic.
+   *
+   * TMDB sources availability from JustWatch and requires the JustWatch mark
+   * plus a region link on every surface that shows it; docs/attribution.md
+   * records the obligation. The component is built so the two cannot come
+   * apart -- it returns null when the region link is missing rather than
+   * rendering offers bare -- and this asserts that against the real page, with
+   * a seeded provider so it cannot pass by finding an empty section.
+   */
+  test('availability never renders without its JustWatch attribution', async ({ page }) => {
+    await page.goto(`/title/${fixtures().titleSlug}`);
+    await page.waitForLoadState('networkidle');
+
+    const providers = page.getByText('Fixture Stream');
+    await expect(
+      providers,
+      'the seeded provider must render, or this proves nothing',
+    ).toBeVisible();
+
+    const mark = page.locator('img[alt="JustWatch"]');
+    await expect(mark).toBeVisible();
+    const link = page.locator('a', { has: mark });
+    await expect(link).toHaveAttribute('href', /themoviedb\.org.*watch/);
+  });
+
   test('the title detail page has no axe violations', async ({ page }) => {
     const violations = await audit(page, `/title/${fixtures().titleSlug}`);
     expect(violations, `\n  ${report(violations)}\n`).toEqual([]);

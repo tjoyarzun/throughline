@@ -40,6 +40,7 @@ export const MAX_AGE_S: Record<string, number> = {
   hydrate_episodes: 172_800,
   derive_themes: 172_800,
   enrich_wikidata: 172_800,
+  refresh_availability: 172_800,
   recompute_similar: 604_800, // weekly by design
 };
 

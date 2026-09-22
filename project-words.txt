@@ -38,9 +38,11 @@ Drizzle
 DuVernay
 Etranger
 FRBR
+Fandango
 Farhadi
 Federico
 Fellini
+Flix
 Fullmetal
 Geist
 Gervais
@@ -51,6 +53,7 @@ HSTS
 Hauntings
 Herbert
 Hirokazu
+Hoopla
 IMDb
 Ingestor
 Ingmar
@@ -61,6 +64,7 @@ Jane
 Jojo
 JustWatch
 Kaisen
+Kanopy
 Kelly
 Kore-eda
 Kurosawa
@@ -180,6 +184,7 @@ graphology
 greppable
 hauntings
 headshot
+hotlinked
 imdb
 interestingness
 isekai
@@ -254,6 +259,7 @@ sublabel
 subresource
 tappable
 taxonomies
+themoviedb
 throughline
 tmdb
 tname

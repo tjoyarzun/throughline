@@ -70,6 +70,24 @@ setup('seed an account, a title and a share', async () => {
         SELECT 1 FROM usr.rating
         WHERE account_id = ${accountId} AND title_id = ${titleId} AND superseded_at IS NULL)`;
 
+    /* Availability for the fixture, so the attribution obligation can be
+       asserted against a page that actually renders providers. Without a row
+       here the section returns null and a test for the JustWatch mark would
+       pass by finding an absent section -- which is the failure mode this
+       suite exists to prevent. */
+    const [org] = await sql<{ id: string }[]>`
+      INSERT INTO core.organization (slug, name, kind, logo_path)
+      VALUES ('e2e-fixture-streamer', 'Fixture Stream', 'streamer', null)
+      ON CONFLICT (slug) DO UPDATE SET name = excluded.name
+      RETURNING id`;
+    await sql`
+      INSERT INTO core.availability
+        (title_id, organization_id, region, offer_type, link, observed_at, valid_to)
+      VALUES (${titleId}, ${org!.id}, 'US', 'flatrate',
+              'https://www.themoviedb.org/movie/0/watch?locale=US', now(), NULL)
+      ON CONFLICT (title_id, organization_id, region, offer_type)
+      DO UPDATE SET valid_to = NULL, observed_at = now()`;
+
     const shareSlug = 'e2eFixtureShareSlug1';
     await sql`
       INSERT INTO usr.share (slug, account_id, title_id, include_rating, rating_snapshot, message)

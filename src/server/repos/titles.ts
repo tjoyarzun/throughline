@@ -215,3 +215,97 @@ export async function getFilmography(
     .sort((a, b) => (order.indexOf(a[0]) + 99) % 99 || 0 - ((order.indexOf(b[0]) + 99) % 99))
     .map(([predicate, titles]) => ({ predicate, titles }));
 }
+
+/**
+ * Collapse a TMDB provider name to the service a person would name.
+ *
+ * TMDB lists every tier and every resale channel as its own provider, so one
+ * film on Paramount comes back as "Paramount Plus Essential", "Paramount Plus
+ * Premium", "Paramount+ Amazon Channel" and "Paramount+ Roku Premium Channel"
+ * -- four rows, one answer to "where can I watch this". Left alone the section
+ * reads as clutter and buries the services that are genuinely different.
+ *
+ * Order matters twice over: the channel suffix goes first, because "Roku
+ * PREMIUM Channel" would otherwise lose its "Premium" to the tier rule and
+ * stop matching; and the ads qualifier comes off before the tier, because in
+ * "Max Basic with Ads" the tier is not the last word until it does.
+ */
+export function serviceName(raw: string): string {
+  return (
+    raw
+      .replace(/\s+(?:Amazon|Roku|Apple TV)(?:\s+Premium)?\s+Channel$/i, '')
+      .replace(/\s+Plus\b/i, '+')
+      // Ads qualifier before tier: "Max Basic with Ads" has to lose the ads part
+      // first or "Basic" is not the final word and the tier rule misses it.
+      .replace(/\s+(?:with\s+Ads|Ad[-\s]?Free)$/i, '')
+      .replace(/\s+(?:Essential|Premium|Basic|Standard)$/i, '')
+      .trim()
+  );
+}
+
+export interface Offer {
+  provider_name: string;
+  provider_logo: string | null;
+  offer_type: string;
+}
+
+export interface Availability {
+  region: string;
+  /** JustWatch-backed page for this title in this region. Required for attribution. */
+  link: string | null;
+  stream: Offer[];
+  free: Offer[];
+  rent: Offer[];
+  buy: Offer[];
+}
+
+/**
+ * Where a title can be watched, for one region.
+ *
+ * Returns null rather than an empty shape when we hold nothing, so the page
+ * can omit the section entirely. "Not available anywhere" and "we have never
+ * asked" are different claims, and only the first is one we are entitled to
+ * make -- a title nobody tracks is never refreshed, so an empty section on it
+ * would be a statement about our job queue dressed up as a statement about
+ * the world.
+ */
+export async function availabilityFor(
+  titleId: string,
+  region: string,
+): Promise<Availability | null> {
+  const rows = await db()<
+    {
+      offer_type: string;
+      provider_name: string;
+      provider_logo: string | null;
+      link: string | null;
+    }[]
+  >`
+    SELECT offer_type, provider_name, provider_logo, link
+    FROM sem.availability
+    WHERE title_id = ${titleId} AND region = ${region.toUpperCase()}
+    ORDER BY provider_name`;
+  if (rows.length === 0) return null;
+
+  const bucket = (types: string[]): Offer[] => {
+    const seen = new Set<string>();
+    const out: Offer[] = [];
+    for (const r of rows) {
+      if (!types.includes(r.offer_type)) continue;
+      const key = serviceName(r.provider_name);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ provider_name: key, provider_logo: r.provider_logo, offer_type: r.offer_type });
+    }
+    return out;
+  };
+
+  return {
+    region: region.toUpperCase(),
+    link: rows.find((r) => r.link)?.link ?? null,
+    stream: bucket(['flatrate']),
+    free: bucket(['free', 'ads']),
+    rent: bucket(['rent']),
+    buy: bucket(['buy']),
+  };
+}

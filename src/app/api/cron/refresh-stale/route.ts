@@ -31,6 +31,13 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const enqueued = await enqueueJobKind(url, 'refresh_stale', { batch: 60 });
 
+  /* Availability rides this cron rather than getting its own.
+     Hobby caps how many schedules exist, and the two belong together anyway:
+     both refresh facts about titles from TMDB, both chain through a backlog,
+     and both want the drain that happens below. A separate schedule would buy
+     independent timing we do not need and spend one of a small budget. */
+  const availability = await enqueueJobKind(url, 'refresh_availability', { batch: 30 });
+
   // after() so the cron response returns immediately; the drain keeps working
   // in the same invocation. A failure here is not a failed cron -- the job is
   // on the queue either way and tomorrow's drain is the backstop.
@@ -42,5 +49,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
   });
 
-  return NextResponse.json(enqueued);
+  return NextResponse.json({ ...enqueued, availability });
 }
