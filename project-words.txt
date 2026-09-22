@@ -146,6 +146,7 @@ blurhash
 bootstrapfixture
 cand
 citext
+clickjacking
 cname
 codegen
 crosswalk
@@ -193,8 +194,10 @@ matview
 matviews
 nanoid
 neon
+networkidle
 nobypassrls
 noindex
+nosniff
 nosuperuser
 nums
 onboarding
@@ -244,6 +247,7 @@ sparkline
 sparql
 subj
 sublabel
+subresource
 tappable
 taxonomies
 throughline

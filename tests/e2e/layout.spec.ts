@@ -167,3 +167,54 @@ test.describe('sharing', () => {
     ).toBe(true);
   });
 });
+
+test.describe('security headers', () => {
+  /**
+   * The app shipped with only the HSTS header Vercel adds on its own: no CSP,
+   * no frame-ancestors, no Referrer-Policy. All three are named ship-blocking
+   * in docs/security.md.
+   */
+  test('every document carries the policy', async ({ request }) => {
+    const res = await request.get('/auth/signin');
+    const h = res.headers();
+
+    expect(h['x-content-type-options']).toBe('nosniff');
+    expect(h['x-frame-options']).toBe('DENY');
+    // Share slugs are capability URLs; a full path in a Referer header hands
+    // the capability to whoever receives it.
+    expect(h['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(h['permissions-policy']).toContain('geolocation=()');
+
+    const csp = h['content-security-policy'];
+    expect(csp, 'a CSP must be present').toBeTruthy();
+    expect(csp, 'scripts are nonce-locked').toMatch(/script-src [^;]*'nonce-/);
+    expect(csp, 'nothing may frame this').toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'self'");
+    // Posters bypass the Next optimizer and come from TMDB directly, so the
+    // policy has to say so or every image on every page breaks.
+    expect(csp).toContain('https://image.tmdb.org');
+  });
+
+  test('the nonce is per request, not a constant', async ({ request }) => {
+    // A reused nonce is the same as no nonce: anything injected once works
+    // forever.
+    const nonce = async () => {
+      const csp = (await request.get('/auth/signin')).headers()['content-security-policy'] ?? '';
+      return /'nonce-([^']+)'/.exec(csp)?.[1];
+    };
+    const [a, b] = await Promise.all([nonce(), nonce()]);
+    expect(a).toBeTruthy();
+    expect(a).not.toBe(b);
+  });
+
+  test('renders with no policy violations', async ({ page }) => {
+    const violations: string[] = [];
+    page.on('console', (m) => {
+      if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text());
+    });
+    await page.goto('/auth/signin');
+    await page.waitForLoadState('networkidle');
+    expect(violations, violations.join(' | ')).toEqual([]);
+  });
+});
