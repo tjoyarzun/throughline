@@ -135,3 +135,194 @@ AS $$
   UPDATE usr.share SET view_count = view_count + 1
   WHERE slug = p_slug AND revoked_at IS NULL;
 $$;
+
+-- ── Admin ───────────────────────────────────────────────────────────────────
+--
+-- Admin reads cross account boundaries, which is exactly what RLS exists to
+-- prevent, so each one is SECURITY DEFINER and checks the caller FIRST. The
+-- privilege check lives with the privilege: a future caller that forgets to
+-- check is refused by the database rather than trusted.
+--
+-- current_account_id() comes from app.account_id, set by withUser(). With no
+-- session it is null, is_admin is false, and every function here refuses.
+CREATE OR REPLACE FUNCTION usr.assert_admin()
+RETURNS void
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM usr.account
+    WHERE id = usr.current_account_id() AND is_admin AND deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'not an admin' USING ERRCODE = '42501';
+  END IF;
+END $$;
+
+/*
+ * Everyone, with the numbers that say whether they are actually using it.
+ *
+ * The streak counts CONSECUTIVE DAYS ending today or yesterday. Ending
+ * yesterday still counts: a streak should not appear broken first thing in the
+ * morning before you have opened the app.
+ */
+DROP FUNCTION IF EXISTS usr.admin_users();
+DROP FUNCTION IF EXISTS usr.admin_sessions(uuid);
+DROP FUNCTION IF EXISTS usr.admin_revoke_session(text);
+DROP FUNCTION IF EXISTS usr.admin_create_invite(text, text, int);
+DROP FUNCTION IF EXISTS usr.admin_invites();
+DROP FUNCTION IF EXISTS usr.admin_revoke_invite(text);
+
+CREATE OR REPLACE FUNCTION usr.admin_users()
+RETURNS TABLE (
+  account_id uuid,
+  email text,
+  display_name text,
+  is_admin boolean,
+  created_at timestamptz,
+  watched int,
+  rated int,
+  episodes int,
+  last_login timestamptz,
+  streak int,
+  active_sessions int
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = usr, core, pg_temp
+AS $$
+BEGIN
+  -- PERFORM, as a STATEMENT.
+  --
+  -- The first version put the check in a WHERE clause as
+  -- `(SELECT 1 FROM (SELECT assert_admin()) _) IS NOT NULL`, and the planner
+  -- elided it: a non-admin got every row, and so did a caller with no session
+  -- at all. A guard whose result is unused is not guaranteed to run. In
+  -- plpgsql the statement order is the contract.
+  PERFORM usr.assert_admin();
+  RETURN QUERY
+  SELECT
+    a.id, a.email::text, a.display_name, a.is_admin, a.created_at,
+    (SELECT count(*)::int FROM usr.title_state t
+      WHERE t.account_id = a.id AND t.status = 'watched'),
+    (SELECT count(*)::int FROM usr.rating r
+      WHERE r.account_id = a.id AND r.superseded_at IS NULL),
+    (SELECT count(*)::int FROM usr.episode_progress p WHERE p.account_id = a.id),
+    (SELECT max(s.created_at) FROM usr.auth_session s WHERE s.user_id = a.id),
+    COALESCE((
+      -- Gaps and islands: number each distinct login day, subtract the row
+      -- number, and consecutive days share a value. Count the run containing
+      -- today or yesterday.
+      WITH days AS (
+        SELECT DISTINCT s.created_at::date AS d
+        FROM usr.auth_session s WHERE s.user_id = a.id
+      ), grouped AS (
+        SELECT d, d - (row_number() OVER (ORDER BY d))::int AS grp FROM days
+      )
+      SELECT count(*)::int FROM grouped
+      WHERE grp = (SELECT grp FROM grouped ORDER BY d DESC LIMIT 1)
+        AND (SELECT max(d) FROM days) >= now()::date - 1
+    ), 0),
+    (SELECT count(*)::int FROM usr.auth_session s
+      WHERE s.user_id = a.id AND s.expires_at > now())
+  FROM usr.account a
+  WHERE a.deleted_at IS NULL
+  ORDER BY a.created_at;
+END $$;
+
+/* Devices, so access can be revoked per device rather than everywhere. */
+CREATE OR REPLACE FUNCTION usr.admin_sessions(p_account uuid)
+RETURNS TABLE (
+  -- TEXT, not uuid: Better Auth owns this table and generates its own ids.
+  session_id text,
+  user_agent text,
+  ip_address text,
+  created_at timestamptz,
+  expires_at timestamptz
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+BEGIN
+  PERFORM usr.assert_admin();
+  RETURN QUERY
+  SELECT s.id, s.user_agent, s.ip_address, s.created_at, s.expires_at
+  FROM usr.auth_session s
+  WHERE s.user_id = p_account AND s.expires_at > now()
+  ORDER BY s.created_at DESC;
+END $$;
+
+/* Revoking deletes the session outright: an expired-but-present row is a
+   credential that still exists, and the point is that it should not. */
+CREATE OR REPLACE FUNCTION usr.admin_revoke_session(p_session text)
+RETURNS int
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+DECLARE n int;
+BEGIN
+  PERFORM usr.assert_admin();
+  DELETE FROM usr.auth_session WHERE id = p_session;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;
+
+CREATE OR REPLACE FUNCTION usr.admin_create_invite(p_code text, p_email text, p_days int)
+RETURNS TABLE (code text, expires_at timestamptz)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+BEGIN
+  PERFORM usr.assert_admin();
+  RETURN QUERY
+  INSERT INTO usr.invite (code, email, created_by, expires_at)
+  VALUES (p_code, nullif(p_email, ''), usr.current_account_id(),
+          now() + make_interval(days => p_days))
+  RETURNING usr.invite.code::text, usr.invite.expires_at;
+END $$;
+
+CREATE OR REPLACE FUNCTION usr.admin_invites()
+RETURNS TABLE (
+  code text,
+  email text,
+  expires_at timestamptz,
+  redeemed_at timestamptz,
+  redeemed_by_email text,
+  created_at timestamptz
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+BEGIN
+  PERFORM usr.assert_admin();
+  RETURN QUERY
+  SELECT i.code::text, i.email::text, i.expires_at, i.redeemed_at,
+         r.email::text, i.created_at
+  FROM usr.invite i
+  LEFT JOIN usr.account r ON r.id = i.redeemed_by
+  ORDER BY i.created_at DESC
+  LIMIT 100;
+END $$;
+
+CREATE OR REPLACE FUNCTION usr.admin_revoke_invite(p_code text)
+RETURNS int
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+DECLARE n int;
+BEGIN
+  PERFORM usr.assert_admin();
+  DELETE FROM usr.invite WHERE code = p_code AND redeemed_at IS NULL;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;

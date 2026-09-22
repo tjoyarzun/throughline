@@ -107,6 +107,27 @@ export const auth = betterAuth({
             },
           };
         },
+        /**
+         * `redeemed_by` can only be written here. The before hook spends the
+         * invite, but the account has no id until the row exists, so the FK
+         * had nothing to point at — which is why the column sat unwritten
+         * since it was added, and the admin view showed every redemption as
+         * having been made by "someone".
+         *
+         * Not fatal if it fails: the invite is already spent and the account
+         * already exists. Losing the attribution is not worth failing a
+         * sign-up over.
+         */
+        after: async (user) => {
+          try {
+            await client`
+              UPDATE usr.invite SET redeemed_by = ${user.id}::uuid
+              WHERE email = ${user.email} AND redeemed_by IS NULL
+                AND redeemed_at IS NOT NULL`;
+          } catch {
+            // Attribution only. The sign-up has already succeeded.
+          }
+        },
       },
     },
   },

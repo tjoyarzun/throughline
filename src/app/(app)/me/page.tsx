@@ -4,6 +4,8 @@ import { SignOutButton } from '@/components/auth/sign-out-button';
 import { ShareList } from '@/components/tracking/share-list';
 import { listMyShares } from '@/server/repos/shares';
 import { Chip } from '@/components/ui/chip';
+import { AdminPanel } from '@/components/admin/admin-panel';
+import { adminInvites, adminUsers, isAdmin } from '@/server/repos/admin';
 
 export const metadata = { title: 'Me' };
 export const dynamic = 'force-dynamic';
@@ -14,6 +16,13 @@ export default async function MePage() {
 
   const { user } = session;
   const shares = await listMyShares(user.id);
+
+  // Two round trips only for an admin. Everyone else pays for one boolean.
+  const admin = await isAdmin(user.id);
+  const [users, invites] = admin
+    ? await Promise.all([adminUsers(user.id), adminInvites(user.id)])
+    : [[], []];
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
@@ -58,6 +67,23 @@ export default async function MePage() {
         </h2>
         <ShareList shares={shares} />
       </section>
+
+      {admin && (
+        <section className="flex flex-col gap-4">
+          <h2
+            className="text-xs uppercase tracking-widest"
+            style={{ color: 'var(--tl-accent)', fontFamily: 'var(--font-mono)' }}
+          >
+            Administration
+          </h2>
+          <AdminPanel
+            users={users}
+            invites={invites}
+            currentSessionId={session.session.id}
+            origin={origin}
+          />
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2

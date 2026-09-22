@@ -43,12 +43,16 @@ async function explain(res: Response): Promise<string> {
   return `Request failed (${res.status}).`;
 }
 
-export function SignInForm({ next }: { next: string }) {
+/**
+ * `invite` arrives from the ?invite= on a shared invite link, so the recipient
+ * never retypes a code that was already in the URL they tapped.
+ */
+export function SignInForm({ next, invite = '' }: { next: string; invite?: string }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(invite);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

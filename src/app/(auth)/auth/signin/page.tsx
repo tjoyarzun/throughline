@@ -5,9 +5,9 @@ export const metadata = { title: 'Sign in' };
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; invite?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, invite } = await searchParams;
   return (
     <div className="flex flex-col gap-8 py-10">
       <header className="flex flex-col gap-2">
@@ -16,7 +16,7 @@ export default async function SignInPage({
           A media tracker that understands how things connect.
         </p>
       </header>
-      <SignInForm next={next ?? '/'} />
+      <SignInForm next={next ?? '/'} invite={invite ?? ''} />
       <p className="text-xs" style={{ color: 'var(--tl-text-faint)' }}>
         Throughline is invite-only. If you have a code, you can create an account with it.
       </p>

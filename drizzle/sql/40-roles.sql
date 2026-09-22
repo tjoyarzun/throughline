@@ -46,6 +46,15 @@ GRANT EXECUTE ON FUNCTION usr.current_account_id()     TO app_web;
 -- Capability reads for the public share page. SECURITY DEFINER, slug-only,
 -- one row at most -- see the comment on the functions themselves.
 GRANT EXECUTE ON FUNCTION usr.share_by_slug(text)      TO app_web;
+-- Admin surfaces. Each is SECURITY DEFINER and refuses a caller who is not an
+-- admin, so granting EXECUTE broadly is safe: the check is inside.
+GRANT EXECUTE ON FUNCTION usr.assert_admin()           TO app_web;
+GRANT EXECUTE ON FUNCTION usr.admin_users()            TO app_web;
+GRANT EXECUTE ON FUNCTION usr.admin_sessions(uuid)     TO app_web;
+GRANT EXECUTE ON FUNCTION usr.admin_revoke_session(text) TO app_web;
+GRANT EXECUTE ON FUNCTION usr.admin_create_invite(text, text, int) TO app_web;
+GRANT EXECUTE ON FUNCTION usr.admin_invites()          TO app_web;
+GRANT EXECUTE ON FUNCTION usr.admin_revoke_invite(text) TO app_web;
 GRANT EXECUTE ON FUNCTION usr.share_record_view(text)  TO app_web;
 
 GRANT EXECUTE ON FUNCTION core.claim_jobs(int, text, interval)  TO app_ingest;
@@ -70,3 +79,17 @@ GRANT EXECUTE ON FUNCTION core.uuid_generate_v7() TO app_auth;
 -- app_web must never reach the auth tables directly; it goes through the
 -- library, which uses the app_auth connection.
 REVOKE ALL ON usr.auth_session, usr.oauth_account, usr.auth_verification FROM app_web;
+
+/* usr.invite is the same kind of table and was missed.
+   It has no RLS -- there is no account_id to scope it by -- so the blanket
+   "GRANT ... ON ALL TABLES IN SCHEMA usr" above handed app_web an unfiltered
+   SELECT over every invite code. Verified: the app role, with no session set
+   at all, read back a live code. The codes are the credential for creating an
+   account, so that is the whole of the signup gate readable by anyone holding
+   a session.
+   Revoking rather than adding a deny-all RLS policy on purpose: a missing
+   grant fails loudly with "permission denied", where an RLS policy with no
+   matching rows would return an empty set and look like an empty table.
+   Nothing in the request path needs it -- the admin panel goes through the
+   SECURITY DEFINER usr.admin_* functions, and signup runs as app_auth. */
+REVOKE ALL ON usr.invite FROM app_web;

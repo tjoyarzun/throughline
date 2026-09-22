@@ -1,5 +1,6 @@
 # Project vocabulary. Domain, vendor, and technical terms cspell does not know.
 ABCDEFGHJKLMNPQRSTUVWXYZ
+ADMTEST
 Agnès
 Alejandro
 Alice
