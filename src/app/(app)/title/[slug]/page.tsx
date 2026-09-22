@@ -5,6 +5,7 @@ import { hydrateOnDemand } from '@/server/ingest/on-demand';
 import { Chip } from '@/components/ui/chip';
 import { backdropUrl, posterUrl, profileUrl } from '@/lib/tmdb-image';
 import { TrackControls } from '@/components/tracking/track-controls';
+import { similarTitles } from '@/server/repos/titles';
 import { getAccountId } from '@/server/auth/session';
 import { getUserTitle } from '@/server/repos/user';
 
@@ -48,7 +49,10 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
   // The page renders for signed-out visitors too (share links land here), so
   // the personal layer is fetched only when there is someone to fetch it for.
   const accountId = await getAccountId();
-  const tracked = accountId ? await getUserTitle(accountId, t.id) : null;
+  const [tracked, similar] = await Promise.all([
+    accountId ? getUserTitle(accountId, t.id) : null,
+    similarTitles(t.id, 12),
+  ]);
 
   return (
     <article className="-mx-4 flex flex-col gap-8">
@@ -244,6 +248,47 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
                 <Chip key={f.id}>{f.name}</Chip>
               ))}
             </div>
+          </Section>
+        )}
+
+        {similar.length > 0 && (
+          <Section title="Similar">
+            <ul className="flex gap-3 overflow-x-auto pb-2">
+              {similar.map((sim) => (
+                <li key={sim.id} className="w-[104px] shrink-0">
+                  <Link href={`/title/${sim.slug}`} className="flex flex-col gap-2">
+                    <span
+                      className="relative block aspect-[2/3] w-full overflow-hidden"
+                      style={{
+                        borderRadius: 'var(--radius-poster)',
+                        background: 'var(--tl-surface-2)',
+                        boxShadow: 'inset 0 0 0 1px var(--tl-poster-inset)',
+                      }}
+                    >
+                      {sim.poster_path && (
+                        // eslint-disable-next-line @next/next/no-img-element -- TMDB CDN
+                        <img
+                          src={posterUrl(sim.poster_path, 160)}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                    </span>
+                    <span className="line-clamp-2 text-xs leading-tight">{sim.title}</span>
+                    {/* The REASON is the point. A similarity you cannot explain
+                        is indistinguishable from a guess, and the whole claim
+                        of this project is that the ontology can explain it. */}
+                    <span
+                      className="text-[10px] uppercase tracking-wide"
+                      style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      {sim.reason}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </Section>
         )}
 

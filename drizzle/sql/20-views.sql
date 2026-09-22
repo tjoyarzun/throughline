@@ -100,7 +100,17 @@ CREATE OR REPLACE VIEW sem.edge_bidirectional AS
          m.excluded_from_path_intermediates
   FROM sem.edge e
   JOIN core.predicate_meta m ON m.predicate = e.predicate
-  WHERE NOT m.is_structural AND NOT m.is_symmetric;
+  -- Symmetric predicates are INCLUDED here, deliberately.
+  --
+  -- A symmetric edge is stored exactly once, in canonical order
+  -- (subject_id < object_id). Skipping its inverse row does not avoid a
+  -- duplicate -- it deletes the other direction outright, so `similar_to`
+  -- would be reachable from A to B and never from B to A. That is the same
+  -- half-the-graph-missing failure described above, and it returns no error:
+  -- just a title whose "similar" list is silently empty because it happened
+  -- to sort second. For these, m.inverse IS the predicate name, so the row
+  -- below is simply the same fact read from the other end.
+  WHERE NOT m.is_structural;
 
 -- ── Node surfaces ────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW sem.title AS

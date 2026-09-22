@@ -21,6 +21,7 @@
     "db:studio": "drizzle-kit studio",
     "db:test-role": "tsx scripts/db-test-role.ts",
     "derive:themes": "tsx scripts/derive-themes.ts",
+    "derive:similar": "tsx scripts/derive-similar.ts",
     "dev": "next dev",
     "e2e": "playwright test",
     "enrich:wikidata": "tsx scripts/enrich-wikidata.ts",

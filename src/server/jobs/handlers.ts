@@ -1,5 +1,6 @@
 import type { Sql } from '../ingest/resolve';
 import { deriveThemes } from '../ingest/derive-themes';
+import { deriveSimilar } from '../ingest/derive-similar';
 import { enrichWikidata } from '../ingest/enrich-wikidata';
 import { Ingestor } from '../ingest/ingest';
 import { TmdbClient } from '../providers/tmdb/client';
@@ -97,6 +98,17 @@ export const HANDLERS: Record<string, Handler> = {
       await sql`SELECT core.enqueue_job('enrich_wikidata',
                   ${sql.json({ offset: result.nextOffset } as never)})`;
     }
+  },
+
+  /**
+   * Rebuild similar_to. Weekly, and after any bulk ingest or theme change.
+   *
+   * Writes only to core.edge_derived, which is separately truncatable, so a
+   * bad scoring run can never damage a provider fact or a curated one. Safe to
+   * re-run: it clears its own method's rows first.
+   */
+  recompute_similar: async (sql) => {
+    await deriveSimilar(sql);
   },
 
   /** Nightly. Node degree drives the hub penalty in path ranking. */

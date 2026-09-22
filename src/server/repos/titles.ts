@@ -88,7 +88,38 @@ export async function getTitleByTmdbId(tmdbId: number, kind: string): Promise<Ti
   return rows[0] ?? null;
 }
 
-/** Trending, for the empty search state — something to show before typing. */
+export interface SimilarTitle {
+  id: string;
+  slug: string;
+  title: string;
+  release_year: number | null;
+  poster_path: string | null;
+  /** director | writer | crew | theme | cast | franchise */
+  reason: string;
+  score: string;
+}
+
+/**
+ * Similar titles, with the reason each one qualified.
+ *
+ * Reads sem.edge_bidirectional rather than core.edge_derived so it picks up
+ * BOTH directions: similar_to is symmetric and stored once, in canonical
+ * order, so querying the base table directly would return nothing for every
+ * title that happened to sort second.
+ */
+export async function similarTitles(titleId: string, limit = 12): Promise<SimilarTitle[]> {
+  return db()<SimilarTitle[]>`
+    SELECT t.id, t.slug, t.title, t.release_year, t.poster_path,
+           e.attributes->>'reason' AS reason,
+           e.attributes->>'score'  AS score
+    FROM sem.edge_bidirectional e
+    JOIN sem.title t ON t.id = e.object_id
+    WHERE e.predicate = 'similar_to' AND e.subject_id = ${titleId}
+    ORDER BY (e.attributes->>'score')::numeric DESC
+    LIMIT ${limit}`;
+}
+
+/** Trending, for the empty search state — something to show before typing. */ /** Trending, for the empty search state — something to show before typing. */
 export async function popularTitles(limit = 18): Promise<TitleSummary[]> {
   return db()<TitleSummary[]>`
     SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres, NULL AS tmdb_id

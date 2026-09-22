@@ -150,6 +150,37 @@ run('ontology enforcement (database level)', () => {
     expect(directedBy!.predicate_label).toBe('directed by');
   });
 
+  it('makes a symmetric edge traversable from BOTH ends', async () => {
+    // similar_to is stored ONCE, in canonical order (subject_id < object_id).
+    // sem.edge_bidirectional used to skip the inverse row for symmetric
+    // predicates, on the assumption it would be a duplicate. It is not -- it
+    // is the other direction, and without it every title that happened to
+    // sort second had a silently empty "similar" list.
+    // The fixture is created HERE rather than sampled from whatever the
+    // database happens to hold. A version of this test that read an existing
+    // row passed against a database with no derived edges at all -- it skipped
+    // itself, and went on passing with the bug deliberately reintroduced.
+    const [lo, hi] = [arrival, br2049].sort();
+    await sql`
+      INSERT INTO core.edge_derived
+        (subject_type, subject_id, predicate, object_type, object_id, method, score)
+      VALUES ('title', ${lo!}, 'similar_to', 'title', ${hi!}, 'test_symmetry', 0.5)
+      ON CONFLICT (subject_type, subject_id, predicate, object_type, object_id, method)
+      DO NOTHING`;
+
+    const forward = await sql`
+      SELECT 1 FROM sem.edge_bidirectional
+      WHERE predicate = 'similar_to' AND subject_id = ${lo!} AND object_id = ${hi!}`;
+    const backward = await sql`
+      SELECT 1 FROM sem.edge_bidirectional
+      WHERE predicate = 'similar_to' AND subject_id = ${hi!} AND object_id = ${lo!}`;
+
+    await sql`DELETE FROM core.edge_derived WHERE method = 'test_symmetry'`;
+
+    expect(forward.length, 'canonical direction').toBeGreaterThan(0);
+    expect(backward.length, 'the other end must see it too').toBeGreaterThan(0);
+  });
+
   it('excludes structural predicates from the traversal surface', async () => {
     // Composition is not a connection. season_of must never appear as an edge.
     const rows = await sql`
