@@ -52,12 +52,24 @@ export const MAX_AGE_S: Record<string, number> = {
  * that does not exist, the check reported "stalled" every morning for work
  * that was simply waiting its turn, which is noise, not a signal.
  *
- * Every path that enqueues now also drains: tracking actions kick one through
- * after(), and the refresh cron drains what it enqueues. So a job still
- * sitting hours later means some enqueue path forgot to, and that is worth
- * being told about.
+ * Every path that enqueues also drains: tracking actions kick one through
+ * after(), and the refresh cron drains what it enqueues.
+ *
+ * Six hours was still wrong, and naming the stalled job is what exposed it.
+ * The self-chaining walks -- hydrate_people, refresh_stale, the rest -- put
+ * their next link on the queue from INSIDE the drain, so the link created when
+ * the 45-second budget runs out has nobody left to run it until the next daily
+ * window. Waiting ~22 hours is that design working, not failing, and a
+ * threshold of six hours reported "degraded" every single day for it. An
+ * alert that is always on is an alert nobody reads.
+ *
+ * Twenty-six hours is the honest line: it is longer than the gap between
+ * drains, so anything that trips it has survived a drain without being
+ * claimed, which is genuinely broken. The "somebody forgot to drain" case it
+ * used to catch now surfaces one day later instead of six hours later, which
+ * is the price of not crying wolf nightly.
  */
-const QUEUE_STALL_S = 6 * 60 * 60;
+const QUEUE_STALL_S = 26 * 60 * 60;
 /**
  * Alert threshold, NOT the target.
  *
