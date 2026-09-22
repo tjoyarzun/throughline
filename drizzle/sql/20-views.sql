@@ -335,6 +335,35 @@ CREATE OR REPLACE VIEW sem.user_viewing AS
          t.title, t.kind, t.poster_path
   FROM usr.viewing v JOIN core.title t ON t.id = v.title_id;
 
+-- ── Seasons and episodes ────────────────────────────────────────────────────
+--
+-- Structural parts, not graph nodes: a season belongs to exactly one show and
+-- has no independent identity (docs/ontology.md). They are exposed here anyway
+-- because the tracker needs them, and app code may only read sem.*.
+CREATE OR REPLACE VIEW sem.season AS
+  SELECT
+    s.id, s.title_id, s.season_number, s.name, s.overview, s.air_date,
+    s.poster_path,
+    -- TMDB's episode_count is what it SAYS a season holds; this counts what we
+    -- actually have. Progress measured against the advertised number reads
+    -- wrong for a season still airing, or one we have not fully ingested.
+    (SELECT count(*)::int FROM core.episode e WHERE e.season_id = s.id) AS episode_count,
+    (SELECT count(*)::int FROM core.episode e
+      WHERE e.season_id = s.id
+        AND e.air_date IS NOT NULL AND e.air_date <= now()::date)        AS aired_count
+  FROM core.season s;
+
+CREATE OR REPLACE VIEW sem.episode AS
+  SELECT
+    e.id, e.title_id, e.season_id, e.episode_number, e.absolute_number,
+    e.name, e.overview, e.air_date, e.runtime_minutes, e.still_path,
+    s.season_number,
+    -- An unaired episode is not something you failed to watch, and the UI has
+    -- to be able to say so rather than showing an empty checkbox.
+    (e.air_date IS NOT NULL AND e.air_date <= now()::date) AS has_aired
+  FROM core.episode e
+  JOIN core.season s ON s.id = e.season_id;
+
 -- ── Taste ───────────────────────────────────────────────────────────────────
 --
 -- ONE definition behind five product features: favorite directors, most-watched
@@ -412,3 +441,5 @@ ALTER VIEW sem.title_credit SET (security_invoker = true);
 ALTER VIEW sem.title_full SET (security_invoker = true);
 ALTER VIEW sem.user_viewing SET (security_invoker = true);
 ALTER VIEW sem.user_taste_affinity SET (security_invoker = true);
+ALTER VIEW sem.season SET (security_invoker = true);
+ALTER VIEW sem.episode SET (security_invoker = true);

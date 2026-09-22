@@ -55,7 +55,11 @@ EXISTING=()
 for t in "${TARGETS[@]}"; do [ -e "$t" ] && EXISTING+=("$t"); done
 [ "${#EXISTING[@]}" -eq 0 ] && { echo "check-locale: no targets found"; exit 0; }
 
-RAW=$(grep -rInE "${STEM_RE}|${WORD_RE}" "${EXISTING[@]}" \
+# -i, case INSENSITIVE. Without it the check was blind to every British word in
+# sentence-initial position -- the commonest place for a capital letter.
+# "Neighbouring" reached a commit while "neighbouring" was already on the
+# denylist, because \b(neighbouring)\b does not match a capital N.
+RAW=$(grep -rIniE "${STEM_RE}|${WORD_RE}" "${EXISTING[@]}" \
         --include='*.ts' --include='*.tsx' --include='*.md' --include='*.css' \
         --include='*.yaml' --include='*.yml' --include='*.sh' --include='*.json' \
         --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.git \

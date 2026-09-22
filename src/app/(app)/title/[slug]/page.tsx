@@ -9,6 +9,7 @@ import { backdropUrl, posterUrl, profileUrl } from '@/lib/tmdb-image';
 import { TrackControls } from '@/components/tracking/track-controls';
 import { ShareButton } from '@/components/tracking/share-button';
 import { similarTitles } from '@/server/repos/titles';
+import { seasonsForTitle } from '@/server/repos/episodes';
 import { getAccountId } from '@/server/auth/session';
 import { getUserTitle } from '@/server/repos/user';
 
@@ -271,6 +272,15 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
           </Section>
         )}
 
+        {/* Seasons, for shows only. Progress is measured against AIRED
+            episodes: someone caught up mid-season is at 100%, and telling them
+            otherwise says they are behind when they are not. */}
+        {t.kind === 'show' && accountId && (
+          <Suspense fallback={null}>
+            <Seasons accountId={accountId} titleId={t.id} slug={t.slug} />
+          </Suspense>
+        )}
+
         <Suspense fallback={<SimilarFallback />}>
           <SimilarStrip titleId={t.id} />
         </Suspense>
@@ -354,5 +364,88 @@ function SimilarFallback() {
         ))}
       </ul>
     </Section>
+  );
+}
+
+/** Season accordion: one row per season, linking to its episode list. */
+async function Seasons({
+  accountId,
+  titleId,
+  slug,
+}: {
+  accountId: string;
+  titleId: string;
+  slug: string;
+}) {
+  const seasons = await seasonsForTitle(accountId, titleId);
+  if (seasons.length === 0) return null;
+
+  return (
+    <Section title="Seasons">
+      <ul className="flex flex-col">
+        {seasons.map((s) => {
+          const pct = s.aired_count > 0 ? Math.round((s.watched_count / s.aired_count) * 100) : 0;
+          return (
+            <li key={s.id} className="border-t" style={{ borderColor: 'var(--tl-border)' }}>
+              <Link
+                href={`/title/${slug}/s/${s.season_number}`}
+                className="flex items-center gap-3 py-3"
+              >
+                <ProgressRing pct={pct} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-sm">
+                    {s.season_number === 0 ? 'Specials' : `Season ${s.season_number}`}
+                  </span>
+                  <span
+                    className="text-[10px] tabular-nums"
+                    style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+                  >
+                    {s.watched_count} of {s.aired_count} aired
+                    {s.episode_count > s.aired_count
+                      ? ` · ${s.episode_count - s.aired_count} to come`
+                      : ''}
+                  </span>
+                </span>
+                <span aria-hidden style={{ color: 'var(--tl-text-dim)' }}>
+                  ›
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
+  );
+}
+
+function ProgressRing({ pct }: { pct: number }) {
+  const R = 13;
+  const C = 2 * Math.PI * R;
+  return (
+    <span className="relative block h-8 w-8 shrink-0">
+      <svg
+        width="32"
+        height="32"
+        viewBox="0 0 32 32"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${pct}% watched`}
+      >
+        <circle cx="16" cy="16" r={R} fill="none" stroke="var(--tl-surface-2)" strokeWidth="3" />
+        <circle
+          cx="16"
+          cy="16"
+          r={R}
+          fill="none"
+          stroke="var(--tl-accent)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={`${(pct / 100) * C} ${C}`}
+          transform="rotate(-90 16 16)"
+        />
+      </svg>
+    </span>
   );
 }

@@ -18,7 +18,10 @@ import { usePathname } from 'next/navigation';
  * justify a dependency, and inline paths inherit currentColor for free.
  */
 const TABS = [
-  { href: '/', label: 'Home', icon: home },
+  // "Now", not "Home". The tab is not a homepage -- it answers "what am I in
+  // the middle of, and what is next", which is a different question and the
+  // one people actually open the app for.
+  { href: '/', label: 'Now', icon: now },
   { href: '/search', label: 'Search', icon: search },
   { href: '/library', label: 'Library', icon: library },
   { href: '/universe', label: 'Universe', icon: universe },
@@ -88,7 +91,7 @@ function Svg({ children }: { children: React.ReactNode }) {
   );
 }
 
-function home({ active }: { active: boolean }) {
+function now({ active }: { active: boolean }) {
   return (
     <Svg>
       <path d="M3 10.5 12 3l9 7.5" />
