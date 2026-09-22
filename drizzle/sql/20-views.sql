@@ -266,9 +266,17 @@ CREATE OR REPLACE VIEW sem.user_title AS
     ts.added_at,
     ts.started_at,
     ts.completed_at,
+    -- When the relationship last changed, which is what "continue watching"
+    -- must order by: added_at would pin a show you resumed last night to
+    -- wherever it sat when you first added it.
+    ts.updated_at,
     (r.value::numeric / 2) AS rating,           -- 1..10 half-stars -> 0.5..5.0
     r.rated_at,
-    (SELECT count(*) FROM usr.viewing v
+    -- ::int on every count, deliberately. count(*) is bigint, which the driver
+    -- hands back as a STRING to protect precision it will never need here --
+    -- and a string that looks like a number is worse than either, because
+    -- view_count + 1 silently becomes "11".
+    (SELECT count(*)::int FROM usr.viewing v
       WHERE v.account_id = ts.account_id AND v.title_id = ts.title_id
         AND v.episode_id IS NULL)                                    AS view_count,
     (SELECT min(v.watched_on) FROM usr.viewing v
@@ -293,8 +301,8 @@ CREATE OR REPLACE VIEW sem.user_title AS
     ON r.account_id = ts.account_id AND r.title_id = ts.title_id AND r.superseded_at IS NULL
   LEFT JOIN LATERAL (
     SELECT
-      count(*) FILTER (WHERE ep.air_date IS NOT NULL AND ep.air_date <= now()::date) AS episodes_aired,
-      count(*) FILTER (WHERE pr.episode_id IS NOT NULL)                              AS episodes_watched
+      count(*) FILTER (WHERE ep.air_date IS NOT NULL AND ep.air_date <= now()::date)::int AS episodes_aired,
+      count(*) FILTER (WHERE pr.episode_id IS NOT NULL)::int                              AS episodes_watched
     FROM core.episode ep
     LEFT JOIN usr.episode_progress pr
       ON pr.episode_id = ep.id AND pr.account_id = ts.account_id

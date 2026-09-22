@@ -4,6 +4,9 @@ import { getTitleBySlug, getTitleByTmdbId } from '@/server/repos/titles';
 import { hydrateOnDemand } from '@/server/ingest/on-demand';
 import { Chip } from '@/components/ui/chip';
 import { backdropUrl, posterUrl, profileUrl } from '@/lib/tmdb-image';
+import { TrackControls } from '@/components/tracking/track-controls';
+import { getAccountId } from '@/server/auth/session';
+import { getUserTitle } from '@/server/repos/user';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +44,11 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
   const writers = t.crew.filter((c) => c.predicate === 'wrote');
   const others = t.crew.filter((c) => !['directed', 'wrote'].includes(c.predicate));
   const accent = t.accent_color ?? 'var(--tl-accent)';
+
+  // The page renders for signed-out visitors too (share links land here), so
+  // the personal layer is fetched only when there is someone to fetch it for.
+  const accountId = await getAccountId();
+  const tracked = accountId ? await getUserTitle(accountId, t.id) : null;
 
   return (
     <article className="-mx-4 flex flex-col gap-8">
@@ -105,6 +113,24 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
       </header>
 
       <div className="flex flex-col gap-8 px-4">
+        {/* The primary action row sits ABOVE the overview: capture is the job
+            people come here to do, and it must be reachable without scrolling. */}
+        {accountId && (
+          <TrackControls
+            titleId={t.id}
+            slug={t.slug}
+            kind={t.kind}
+            initial={{
+              status: tracked?.status ?? null,
+              isFavorite: tracked?.is_favorite ?? false,
+              rating:
+                tracked?.rating === null || tracked?.rating === undefined
+                  ? null
+                  : Number(tracked.rating),
+            }}
+          />
+        )}
+
         {t.overview && <p className="text-[15px] leading-relaxed">{t.overview}</p>}
 
         {(t.genres.length > 0 || t.themes.length > 0) && (

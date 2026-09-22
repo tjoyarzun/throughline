@@ -2,7 +2,13 @@ import type { Sql } from './resolve';
 import { resolveTitle, resolvePerson } from './resolve';
 import { normalizeTitle, personSortName, slugify } from './normalize';
 import type { TmdbClient } from '../providers/tmdb/client';
-import { tmdbMovie, tmdbShow, type TmdbMovie, type TmdbShow } from '../providers/tmdb/schemas';
+import {
+  tmdbMovie,
+  tmdbShow,
+  tmdbSeasonDetail,
+  type TmdbMovie,
+  type TmdbShow,
+} from '../providers/tmdb/schemas';
 
 /**
  * Provider payload -> canonical entities and ontology edges.
@@ -312,6 +318,59 @@ export class Ingestor {
     const s = (await this.tmdb.show(tmdbId, tmdbShow)) as TmdbShow | null;
     if (!s) return null;
     return this.persistShow(s);
+  }
+
+  /**
+   * Fetch and store every episode of a show, one request per season.
+   *
+   * Deliberately NOT part of persistShow. The corpus holds ~1,026 seasons;
+   * pulling all their episodes at ingest would be a thousand extra requests
+   * for data almost none of which anyone looks at. This runs when someone
+   * actually starts tracking a show -- see the hydrate_episodes job.
+   *
+   * Season 0 (specials) is included: people do watch them, and excluding it
+   * would silently drop episodes from the progress count.
+   */
+  async ingestEpisodes(tmdbId: number): Promise<{ seasons: number; episodes: number }> {
+    const [row] = await this.sql<{ id: string }[]>`
+      SELECT t.id FROM core.title t
+      JOIN core.external_id x ON x.entity_type = 'title' AND x.entity_id = t.id
+      WHERE x.source = 'tmdb' AND x.source_id = ${String(tmdbId)} AND t.kind = 'show'`;
+    if (!row) return { seasons: 0, episodes: 0 };
+    const titleId = row.id;
+
+    const seasons = await this.sql<{ id: string; season_number: number }[]>`
+      SELECT id, season_number FROM core.season
+      WHERE title_id = ${titleId} ORDER BY season_number`;
+
+    let episodes = 0;
+    for (const season of seasons) {
+      const detail = (await this.tmdb.season(tmdbId, season.season_number, tmdbSeasonDetail)) as {
+        episodes: {
+          episode_number: number;
+          name: string | null;
+          overview: string | null;
+          air_date: string | null;
+          runtime: number | null;
+          still_path: string | null;
+        }[];
+      } | null;
+      if (!detail) continue;
+
+      for (const ep of detail.episodes) {
+        await this.sql`
+          INSERT INTO core.episode
+            (season_id, title_id, episode_number, name, overview, air_date, runtime_minutes, still_path)
+          VALUES (${season.id}, ${titleId}, ${ep.episode_number}, ${ep.name}, ${ep.overview},
+                  ${ep.air_date}, ${ep.runtime}, ${ep.still_path})
+          ON CONFLICT (season_id, episode_number)
+          DO UPDATE SET name = excluded.name, overview = excluded.overview,
+                        air_date = excluded.air_date, runtime_minutes = excluded.runtime_minutes,
+                        still_path = excluded.still_path`;
+        episodes++;
+      }
+    }
+    return { seasons: seasons.length, episodes };
   }
 
   async persistShow(s: TmdbShow): Promise<string> {

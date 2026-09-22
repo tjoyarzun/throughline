@@ -11,9 +11,20 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { citext, createdAt, updatedAt } from './_shared';
+import {
+  STATUSES,
+  EVENT_KINDS,
+  EVENT_SOURCES,
+  DATE_PRECISIONS,
+  MEDIUMS,
+  RATING_MIN,
+  RATING_MAX,
+  sqlInList,
+} from '../../src/lib/tracking';
 import { title, episode } from './core';
 
 /**
@@ -180,6 +191,9 @@ export const titleState = usr.table(
   },
   (t) => [
     primaryKey({ columns: [t.accountId, t.titleId] }),
+    // The allowed values used to live only in a comment, so the column would
+    // have accepted any string at all.
+    check('title_state_status_ck', sql.raw(`status IN (${sqlInList(STATUSES)})`)),
     index('title_state_account_status_idx').on(t.accountId, t.status),
     index('title_state_favorite_idx')
       .on(t.accountId)
@@ -206,7 +220,21 @@ export const stateEvent = usr.table(
     /** manual | auto_from_viewing | auto_from_episode | import */
     source: text('source').notNull().default('manual'),
   },
-  (t) => [index('state_event_account_time_idx').on(t.accountId, t.occurredAt)],
+  (t) => [
+    check('state_event_kind_ck', sql.raw(`event_kind IN (${sqlInList(EVENT_KINDS)})`)),
+    check('state_event_source_ck', sql.raw(`source IN (${sqlInList(EVENT_SOURCES)})`)),
+    // A status_change must say what it changed to; a favorite event must not
+    // pretend to be one. Without this, a half-written event reads as a real
+    // transition to NULL.
+    check(
+      'state_event_shape_ck',
+      sql.raw(
+        `(event_kind = 'status_change' AND to_status IS NOT NULL)` +
+          ` OR (event_kind <> 'status_change' AND to_status IS NULL AND from_status IS NULL)`,
+      ),
+    ),
+    index('state_event_account_time_idx').on(t.accountId, t.occurredAt),
+  ],
 );
 
 /**
@@ -234,6 +262,10 @@ export const rating = usr.table(
     uniqueIndex('rating_current_uq')
       .on(t.accountId, t.titleId)
       .where(sql`superseded_at is null`),
+    // Half-stars, 1..10. Specified in docs/data-model.md from the start and
+    // never actually applied, so a 0 or a 47 would have been stored and then
+    // divided by two into sem.user_title.rating.
+    check('rating_value_ck', sql.raw(`value BETWEEN ${RATING_MIN} AND ${RATING_MAX}`)),
     index('rating_account_idx').on(t.accountId, t.titleId),
   ],
 );
@@ -267,6 +299,15 @@ export const viewing = usr.table(
     createdAt,
   },
   (t) => [
+    check('viewing_precision_ck', sql.raw(`date_precision IN (${sqlInList(DATE_PRECISIONS)})`)),
+    check('viewing_medium_ck', sql.raw(`medium IS NULL OR medium IN (${sqlInList(MEDIUMS)})`)),
+    // 'unknown' precision is the ONLY case where a watched date may be absent.
+    // Otherwise a missing date is a bug that would silently vanish from every
+    // time-series metric.
+    check(
+      'viewing_date_present_ck',
+      sql.raw(`watched_on IS NOT NULL OR date_precision = 'unknown'`),
+    ),
     index('viewing_account_watched_idx').on(t.accountId, t.watchedOn),
     index('viewing_title_idx').on(t.accountId, t.titleId),
   ],

@@ -36,6 +36,13 @@
       "when": 1790013348748,
       "tag": "0004_outgoing_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790036686373,
+      "tag": "0005_late_raider",
+      "breakpoints": true
     }
   ]
 }

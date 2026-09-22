@@ -124,6 +124,34 @@ export const tmdbSeasonSummary = z.object({
   poster_path: nullableString,
 });
 
+/**
+ * One episode from a season-detail response.
+ *
+ * Episodes are fetched per season and only for shows someone actually tracks:
+ * the full corpus is ~1,026 seasons, and bulk-ingesting every episode would be
+ * thousands of requests for data nobody looks at.
+ */
+export const tmdbEpisode = z.object({
+  id: z.number(),
+  episode_number: z.number(),
+  season_number: z.number(),
+  name: nullableString,
+  overview: nullableString,
+  air_date: looseDate,
+  runtime: nullableNumber,
+  still_path: nullableString,
+});
+
+export const tmdbSeasonDetail = z.object({
+  id: z.number(),
+  season_number: z.number(),
+  name: nullableString,
+  overview: nullableString,
+  air_date: looseDate,
+  poster_path: nullableString,
+  episodes: z.array(tmdbEpisode).default([]),
+});
+
 export const tmdbShow = z.object({
   id: z.number(),
   name: z.string(),

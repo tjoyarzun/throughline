@@ -63,6 +63,21 @@ export const HANDLERS: Record<string, Handler> = {
   },
 
   /**
+   * Fetch every episode of one show. Enqueued when someone starts tracking it.
+   *
+   * Episodes are not ingested up front: the corpus is ~1,026 seasons, and
+   * pulling all of them would be a thousand requests for data nobody reads.
+   * Progress, Continue Watching and the episode list all need them, so the
+   * trigger is the moment a show enters someone's library.
+   */
+  hydrate_episodes: async (sql, payload) => {
+    const tmdbId = Number(payload.tmdbId);
+    if (!Number.isFinite(tmdbId)) throw new Error('hydrate_episodes: tmdbId required');
+    const ing = new Ingestor(sql, new TmdbClient(undefined, captureRaw(sql)));
+    await ing.ingestEpisodes(tmdbId);
+  },
+
+  /**
    * Pull the relationships TMDB does not model -- adaptation sources,
    * franchise membership, influence -- from Wikidata.
    *
