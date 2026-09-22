@@ -7,14 +7,42 @@ two things connected?"_ with ranked, narrated paths through a knowledge graph.
 
 Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
 
-## Current phase: 4 — Search and title detail
+## Current phase: 5 — Personal tracking
 
-Phases 0-3 are complete. The corpus is loaded (**4,972 titles, 148,074 graph edges**) and auth
-works: invite-only email OTP, middleware, `/me`, 258 tests.
+Phases 0-4 are complete. Search, title detail and person detail are live against a corpus of
+**4,972 titles** that is now identical in local and production, themes and Wikidata enrichment
+included. Auth works: invite-only email OTP, middleware, `/me`.
 
-**Phase 4 is the first phase a user can SEE.** Search, title detail, person detail, lazy ingest.
-Until it lands, `/search` and `/library` are stubs — that is expected, not a bug.
+**Phase 5 is what makes it worth opening daily.** Status lifecycle and event log, favorites,
+half-star ratings with history, viewing events, Library segments, Home. Until it lands,
+`/library` is a stub and nothing can be marked watched — that is expected, not a bug.
 The phase plan is in [docs/development-plan.md](docs/development-plan.md).
+
+**Three entity tables are legitimately empty, in both environments** — the code that fills them
+does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running ingest:
+
+| Table               | Why empty                                                                   |
+| ------------------- | --------------------------------------------------------------------------- |
+| `core.episode`      | Phase 6. Seasons are ingested; episodes are not.                            |
+| `core.character`    | Character resolution is deliberately partial and not yet begun.             |
+| `core.edge_derived` | `similar_to` needs a `recompute_similar` handler, which is Phase 2 backlog. |
+
+### Running maintenance against production
+
+There is no local path to the production database — Vercel keeps the connection string
+write-only, correctly. Maintenance therefore runs as a **job**, and `/api/admin/enqueue-job`
+is how work gets into the queue:
+
+```bash
+curl -X POST "$SITE/api/admin/enqueue-job" -H "Authorization: Bearer $CRON_SECRET" \
+  -H 'content-type: application/json' -d '{"kind":"derive_themes"}'
+curl -H "Authorization: Bearer $CRON_SECRET" "$SITE/api/cron/drain"
+```
+
+Kinds must be registered in `HANDLERS`; anything else is refused. A job that needs more than
+one function's wall clock chains itself (see `enrich_wikidata`) rather than running long — a
+single job that outlives the function takes the whole invocation down with it, and the drain's
+45s budget does not help, because it is checked _between_ jobs.
 
 ### Local databases
 
