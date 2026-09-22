@@ -60,4 +60,4 @@ echo "[4/4] enriching from Wikidata"
 pnpm enrich:wikidata
 
 echo
-echo "seed-production: done. Check https://throughline-mu-seven.vercel.app/api/health"
+echo "seed-production: done. Check ${SITE:-https://throughline-ontology.vercel.app}/api/health"

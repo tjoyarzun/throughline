@@ -25,7 +25,8 @@
 import postgres from 'postgres';
 import { directDatabaseUrl } from '@/server/db/resolve-url';
 
-const SITE = process.env.SITE ?? 'https://throughline-mu-seven.vercel.app';
+const SITE =
+  process.env.SITE ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'https://throughline-ontology.vercel.app';
 const SECRET = process.env.CRON_SECRET;
 if (!SECRET) {
   console.error('seed-production-queue: CRON_SECRET is required');

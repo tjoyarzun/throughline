@@ -1,7 +1,19 @@
 import type { Metadata, Viewport } from 'next';
 import '@/styles/globals.css';
 
+/**
+ * The origin Next resolves relative metadata URLs against.
+ *
+ * Without it, og:image is built from whatever origin Next can guess -- in
+ * production that is the per-DEPLOYMENT hostname, which changes on every push
+ * and is not the address anyone was given. iMessage requires an absolute
+ * og:image and does not run JavaScript, so a wrong origin there is a share
+ * link that unfurls as nothing.
+ */
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: 'Throughline', template: '%s · Throughline' },
   description: 'A media tracker that understands how things connect.',
   applicationName: 'Throughline',
