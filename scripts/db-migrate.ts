@@ -73,7 +73,20 @@ async function provisionAuthRole(sql: ReturnType<typeof postgres>): Promise<void
           EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', '${AUTH_ROLE}', ${quoted});
         END IF;
       END $$;`);
-    await sql.unsafe(`ALTER ROLE ${AUTH_ROLE} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`);
+    // ASSERT the attributes, do not command them.
+    //
+    // CREATE ROLE already defaults to NOSUPERUSER and NOBYPASSRLS, and on a
+    // managed Postgres the owner is not a superuser, so it cannot set those
+    // attributes even to the values they already hold. Issuing the ALTER threw
+    // "permission denied to alter role" in production -- and because it threw,
+    // the GRANTs after it never ran and the role existed with no privileges at
+    // all. The check below is what actually matters; the command was only ever
+    // restating a default.
+    try {
+      await sql.unsafe(`ALTER ROLE ${AUTH_ROLE} NOCREATEDB NOCREATEROLE`);
+    } catch {
+      // Unavailable on managed Postgres. The assertion below still runs.
+    }
     await sql.unsafe(`GRANT app_auth TO ${AUTH_ROLE}`);
     const [db] = await sql<{ current_database: string }[]>`SELECT current_database()`;
     await sql.unsafe(`GRANT CONNECT ON DATABASE "${db!.current_database}" TO ${AUTH_ROLE}`);
