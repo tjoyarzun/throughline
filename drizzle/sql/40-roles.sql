@@ -43,6 +43,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA core GRANT SELECT, INSERT, UPDATE, DELETE ON 
 GRANT EXECUTE ON FUNCTION core.uuid_generate_v7()      TO app_web, app_ingest;
 GRANT EXECUTE ON FUNCTION core.normalize_title(text)   TO app_web, app_ingest;
 GRANT EXECUTE ON FUNCTION usr.current_account_id()     TO app_web;
+-- Capability reads for the public share page. SECURITY DEFINER, slug-only,
+-- one row at most -- see the comment on the functions themselves.
+GRANT EXECUTE ON FUNCTION usr.share_by_slug(text)      TO app_web;
+GRANT EXECUTE ON FUNCTION usr.share_record_view(text)  TO app_web;
 
 GRANT EXECUTE ON FUNCTION core.claim_jobs(int, text, interval)  TO app_ingest;
 GRANT EXECUTE ON FUNCTION core.finish_job(uuid)                 TO app_ingest;

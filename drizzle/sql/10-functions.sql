@@ -77,3 +77,49 @@ CREATE OR REPLACE FUNCTION core.recency_decay(ts timestamptz) RETURNS numeric AS
     ELSE greatest(0.25, exp(-0.0019 * extract(epoch FROM (now() - ts)) / 86400.0))::numeric
   END;
 $$ LANGUAGE sql STABLE;
+
+-- ── Share capabilities ──────────────────────────────────────────────────────
+--
+-- usr.share is RLS-scoped to its owner, which is correct and which makes the
+-- PUBLIC share page unreadable: a visitor has no session, so
+-- current_account_id() is null and the policy returns nothing.
+--
+-- The tempting fix is a policy that lets anyone read shares. That would hand
+-- every share to any query that forgot to scope itself -- the same trap the
+-- auth bootstrap policy documents. Instead these two functions are the only
+-- way in, and they are shaped like the capability the URL already is: they
+-- take an exact slug and return AT MOST one row. Neither can enumerate, list,
+-- or filter, so holding a link gets you that link and nothing else.
+CREATE OR REPLACE FUNCTION usr.share_by_slug(p_slug text)
+RETURNS TABLE (
+  title_id uuid,
+  display_name text,
+  include_rating boolean,
+  rating_snapshot smallint,
+  note_snapshot text,
+  message text,
+  created_at timestamptz
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = usr, core, pg_temp
+AS $$
+  SELECT s.title_id, a.display_name, s.include_rating, s.rating_snapshot,
+         s.note_snapshot, s.message, s.created_at
+  FROM usr.share s
+  JOIN usr.account a ON a.id = s.account_id
+  WHERE s.slug = p_slug AND s.revoked_at IS NULL
+  LIMIT 1;
+$$;
+
+-- Counting a view must not require being able to read the row.
+CREATE OR REPLACE FUNCTION usr.share_record_view(p_slug text)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+  UPDATE usr.share SET view_count = view_count + 1
+  WHERE slug = p_slug AND revoked_at IS NULL;
+$$;

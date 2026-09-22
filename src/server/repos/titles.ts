@@ -81,6 +81,12 @@ export async function getTitleBySlug(slug: string): Promise<TitleFull | null> {
   return rows[0] ?? null;
 }
 
+/** By id, for the share page: a share stores a title id, not a slug. */
+export async function titleById(id: string): Promise<TitleFull | null> {
+  const rows = await db()<TitleFull[]>`SELECT * FROM sem.title_full WHERE id = ${id}`;
+  return rows[0] ?? null;
+}
+
 export async function getTitleByTmdbId(tmdbId: number, kind: string): Promise<TitleFull | null> {
   const rows = await db()<TitleFull[]>`
     SELECT f.* FROM sem.title_full f

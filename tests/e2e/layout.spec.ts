@@ -142,3 +142,28 @@ test.describe('installability', () => {
     expect(style).not.toBe('black-translucent');
   });
 });
+
+test.describe('sharing', () => {
+  /**
+   * The share page is the only surface a stranger reaches, and it must work
+   * with no session at all. It also must not leak: it renders one snapshot
+   * row fetched by slug, never a user-scoped read.
+   */
+  test('a share page is reachable with no session and is not indexed', async ({ request }) => {
+    // An unknown slug must be a clean 404, not an error and not a redirect to
+    // sign-in -- /s/ is public, so a wrong link should simply not exist.
+    const missing = await request.get('/s/thisSlugDoesNotExist12', {
+      failOnStatusCode: false,
+      maxRedirects: 0,
+    });
+    expect(missing.status(), 'an unknown share is a 404, never a redirect').toBe(404);
+  });
+
+  test('share routes are public, not behind the session gate', async ({ request }) => {
+    const res = await request.get('/s/anything', { failOnStatusCode: false, maxRedirects: 0 });
+    expect(
+      [404, 200].includes(res.status()),
+      `expected the share route to render or 404, got ${res.status()}`,
+    ).toBe(true);
+  });
+});

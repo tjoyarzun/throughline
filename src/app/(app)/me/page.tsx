@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/server/auth/session';
 import { SignOutButton } from '@/components/auth/sign-out-button';
+import { ShareList } from '@/components/tracking/share-list';
+import { listMyShares } from '@/server/repos/shares';
 import { Chip } from '@/components/ui/chip';
 
 export const metadata = { title: 'Me' };
@@ -11,6 +13,7 @@ export default async function MePage() {
   if (!session) redirect('/auth/signin?next=/me');
 
   const { user } = session;
+  const shares = await listMyShares(user.id);
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
@@ -51,14 +54,24 @@ export default async function MePage() {
           className="text-xs uppercase tracking-widest"
           style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
         >
+          Shared links
+        </h2>
+        <ShareList shares={shares} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2
+          className="text-xs uppercase tracking-widest"
+          style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+        >
           Coming next
         </h2>
         <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
-          This is where data export, theme, region and household settings will live. Sharing and
-          episode tracking are the next things being built.
+          This is where data export, theme, region and household settings will live. Episode
+          tracking is the next thing being built.
         </p>
         <div className="flex flex-wrap gap-2">
-          {['Sharing', 'Episodes', 'Data export', 'Households', 'Offline'].map((f) => (
+          {['Episodes', 'Data export', 'Households', 'Offline', 'Import'].map((f) => (
             <Chip key={f} variant="provenance">
               {f}
             </Chip>

@@ -7,6 +7,7 @@ import { Chip } from '@/components/ui/chip';
 import { PosterSkeleton } from '@/components/ui/skeleton';
 import { backdropUrl, posterUrl, profileUrl } from '@/lib/tmdb-image';
 import { TrackControls } from '@/components/tracking/track-controls';
+import { ShareButton } from '@/components/tracking/share-button';
 import { similarTitles } from '@/server/repos/titles';
 import { getAccountId } from '@/server/auth/session';
 import { getUserTitle } from '@/server/repos/user';
@@ -123,19 +124,24 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
         {/* The primary action row sits ABOVE the overview: capture is the job
             people come here to do, and it must be reachable without scrolling. */}
         {accountId && (
-          <TrackControls
-            titleId={t.id}
-            slug={t.slug}
-            kind={t.kind}
-            initial={{
-              status: tracked?.status ?? null,
-              isFavorite: tracked?.is_favorite ?? false,
-              rating:
-                tracked?.rating === null || tracked?.rating === undefined
-                  ? null
-                  : Number(tracked.rating),
-            }}
-          />
+          <div className="flex flex-col gap-3">
+            <TrackControls
+              titleId={t.id}
+              slug={t.slug}
+              kind={t.kind}
+              initial={{
+                status: tracked?.status ?? null,
+                isFavorite: tracked?.is_favorite ?? false,
+                rating:
+                  tracked?.rating === null || tracked?.rating === undefined
+                    ? null
+                    : Number(tracked.rating),
+              }}
+            />
+            <div className="flex gap-2">
+              <ShareButton titleId={t.id} title={t.title} />
+            </div>
+          </div>
         )}
 
         {t.overview && <p className="text-[15px] leading-relaxed">{t.overview}</p>}

@@ -48,6 +48,8 @@ export function DiscoveryRail({
       </div>
       <ul className="flex gap-3 overflow-x-auto pb-2">
         {items.map((item) => (
+          // items-stretch is the flex default, so every card is as tall as
+          // the tallest; h-full lets the card use that height.
           <li key={`${item.kind}-${item.tmdbId}`} className="w-[104px] shrink-0">
             <Card item={item} />
           </li>
@@ -66,7 +68,7 @@ function Card({ item }: { item: RailItem }) {
   const href = item.slug ? `/title/${item.slug}` : `/title/tmdb-${item.kind}-${item.tmdbId}`;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex h-full flex-col gap-1.5">
       <Link href={href} className="flex flex-col gap-1.5">
         <span
           className="relative block aspect-[2/3] w-full overflow-hidden"
@@ -86,7 +88,12 @@ function Card({ item }: { item: RailItem }) {
             />
           )}
         </span>
-        <span className="line-clamp-2 text-xs leading-tight" style={{ minHeight: '2.1em' }}>
+        {/*
+          Two full lines reserved. leading-tight is 1.25, so two lines of
+          text-xs is 2.5em -- the previous 2.1em was less than that, and a
+          wrapped title still pushed everything below it down.
+        */}
+        <span className="line-clamp-2 text-xs leading-tight" style={{ minHeight: '2.5em' }}>
           {item.title}
         </span>
         <span
@@ -98,11 +105,13 @@ function Card({ item }: { item: RailItem }) {
         </span>
       </Link>
 
+      {/* mt-auto pins this to the bottom of the card, so the row of buttons is
+          level even where a date is missing or a title runs long. */}
       <button
         type="button"
         disabled={added || pending}
         aria-label={added ? `${item.title} is on your watchlist` : `Add ${item.title} to watchlist`}
-        className="min-h-9 rounded-full px-2 py-1 text-[11px]"
+        className="mt-auto min-h-9 rounded-full px-2 py-1 text-[11px]"
         style={{
           border: `1px solid ${added ? 'var(--tl-accent)' : 'var(--tl-border-strong)'}`,
           color: added ? 'var(--tl-accent)' : 'var(--tl-text-dim)',
