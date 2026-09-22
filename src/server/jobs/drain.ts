@@ -20,7 +20,11 @@ export interface DrainResult {
   elapsed_ms: number;
 }
 
-export async function drainQueue(databaseUrl: string): Promise<DrainResult> {
+export async function drainQueue(
+  databaseUrl: string,
+  opts: { budgetMs?: number } = {},
+): Promise<DrainResult> {
+  const BUDGET = opts.budgetMs ?? BUDGET_MS;
   const sql = postgres(databaseUrl, { max: 2, prepare: false, onnotice: () => {} });
   const worker = `drain-${Math.random().toString(36).slice(2, 8)}`;
   const started = Date.now();
@@ -28,12 +32,12 @@ export async function drainQueue(databaseUrl: string): Promise<DrainResult> {
   let failed = 0;
 
   try {
-    while (Date.now() - started < BUDGET_MS) {
+    while (Date.now() - started < BUDGET) {
       const jobs = await sql<Job[]>`SELECT * FROM core.claim_jobs(${BATCH}, ${worker})`;
       if (jobs.length === 0) break;
 
       for (const job of jobs) {
-        if (Date.now() - started >= BUDGET_MS) {
+        if (Date.now() - started >= BUDGET) {
           // Out of budget. Release rather than hold a lock the next run would
           // have to wait out, and do not charge the job an attempt for it.
           await sql`UPDATE core.job SET status = 'queued', locked_at = NULL,
