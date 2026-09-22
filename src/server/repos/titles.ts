@@ -164,10 +164,17 @@ export interface PersonDetail {
   biography: string | null;
   profile_path: string | null;
   known_for_department: string | null;
-  birthday: string | null;
-  deathday: string | null;
+  /**
+   * DATE columns, which the driver parses into JS Date objects -- not strings.
+   * Typing them as string compiled fine and threw at runtime on .slice().
+   */
+  birthday: Date | string | null;
+  deathday: Date | string | null;
   place_of_birth: string | null;
   role_summary: Record<string, number>;
+  /** Null until the person's own record has been fetched. */
+  detail_synced_at: string | null;
+  tmdb_id: string | null;
 }
 
 export async function getPersonBySlug(slug: string): Promise<PersonDetail | null> {

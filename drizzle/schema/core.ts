@@ -144,6 +144,16 @@ export const person = core.table(
     createdAt,
     updatedAt,
     syncedAt: timestamp('synced_at', { withTimezone: true }),
+    /**
+     * When this person's OWN record was last fetched.
+     *
+     * Distinct from syncedAt, which a credits payload sets: a person appears
+     * in core the moment they are credited on something, carrying only a name,
+     * a photo and a department. Without a separate marker there is no way to
+     * tell "has no biography" from "nobody ever asked TMDB for one", and the
+     * page would re-fetch on every view for anyone who genuinely has none.
+     */
+    detailSyncedAt: timestamp('detail_synced_at', { withTimezone: true }),
   },
   (t) => [index('person_sort_name_idx').on(t.sortName)],
 );

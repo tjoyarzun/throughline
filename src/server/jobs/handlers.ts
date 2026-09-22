@@ -160,6 +160,39 @@ export const HANDLERS: Record<string, Handler> = {
     }
   },
 
+  /**
+   * Backfill people who have never had their own record fetched.
+   *
+   * Chains like the Wikidata walk. Ordered by popularity so the names anyone
+   * is likely to open arrive first: 58,714 people is far more than anybody
+   * browses, and a flat pass would spend a week on bit players before
+   * reaching a lead.
+   */
+  hydrate_people: async (sql, payload) => {
+    const batch = Math.min(Number(payload.batch ?? 25), 100);
+    const rows = await sql<{ tmdb_id: string }[]>`
+      SELECT x.source_id AS tmdb_id
+      FROM core.person p
+      JOIN core.external_id x
+        ON x.entity_type = 'person' AND x.entity_id = p.id AND x.source = 'tmdb'
+      WHERE p.detail_synced_at IS NULL
+      ORDER BY p.popularity DESC NULLS LAST
+      LIMIT ${batch}`;
+    if (rows.length === 0) return;
+
+    const ing = new Ingestor(sql, new TmdbClient(undefined, captureRaw(sql)));
+    for (const r of rows) {
+      const id = Number(r.tmdb_id);
+      if (Number.isFinite(id)) await ing.hydratePerson(id);
+    }
+
+    const [more] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM core.person WHERE detail_synced_at IS NULL`;
+    if ((more?.n ?? 0) > 0) {
+      await sql`SELECT core.enqueue_job('hydrate_people', ${sql.json({ batch } as never)})`;
+    }
+  },
+
   /** Nightly. Node degree drives the hub penalty in path ranking. */
   refresh_degree: async (sql) => {
     await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY core.node_degree`;

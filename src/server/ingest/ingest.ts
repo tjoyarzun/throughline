@@ -6,8 +6,10 @@ import {
   tmdbMovie,
   tmdbShow,
   tmdbSeasonDetail,
+  tmdbPerson,
   type TmdbMovie,
   type TmdbShow,
+  type TmdbPerson,
 } from '../providers/tmdb/schemas';
 
 /**
@@ -147,6 +149,56 @@ export class Ingestor {
   }
 
   // ── People ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Fill in a person's own record.
+   *
+   * ensurePerson only ever sees what a CREDITS payload carries -- id, name,
+   * photo, department -- because that is all a credits payload has. So
+   * biography, birthday, deathday and place of birth were null for all 58,714
+   * people in the corpus, and a person page was a photo and a job title.
+   *
+   * Deliberately separate from ensurePerson: calling this during a title
+   * ingest would add one request per cast member, turning a single film into
+   * thirty. It runs when someone actually opens a person page.
+   */
+  async hydratePerson(tmdbId: number): Promise<boolean> {
+    const p = (await this.tmdb.person(tmdbId, tmdbPerson)) as TmdbPerson | null;
+    if (!p) return false;
+
+    const [row] = await this.sql<{ entity_id: string }[]>`
+      SELECT entity_id FROM core.external_id
+      WHERE source = 'tmdb' AND source_id = ${String(tmdbId)} AND entity_type = 'person'`;
+    if (!row) return false;
+
+    await this.sql`
+      UPDATE core.person SET
+        biography           = ${p.biography},
+        birthday            = ${p.birthday},
+        deathday            = ${p.deathday},
+        place_of_birth      = ${p.place_of_birth},
+        also_known_as       = ${p.also_known_as},
+        -- COALESCE, not overwrite: a credits payload sometimes carries a photo
+        -- or department that the detail endpoint leaves null, and replacing
+        -- real data with null is a downgrade, not an update.
+        known_for_department = COALESCE(${p.known_for_department}, known_for_department),
+        profile_path         = COALESCE(${p.profile_path}, profile_path),
+        popularity           = COALESCE(${p.popularity}, popularity),
+        popularity_as_of     = now(),
+        detail_synced_at     = now(),
+        updated_at           = now()
+      WHERE id = ${row.entity_id}`;
+
+    // The IMDb id is the key Wikidata enrichment joins on, so it is worth
+    // keeping the moment a provider hands it over.
+    if (p.imdb_id) {
+      await this.sql`
+        INSERT INTO core.external_id (source, source_id, entity_type, entity_id, is_primary)
+        VALUES ('imdb', ${p.imdb_id}, 'person', ${row.entity_id}, false)
+        ON CONFLICT DO NOTHING`;
+    }
+    return true;
+  }
 
   async ensurePerson(p: {
     id: number;

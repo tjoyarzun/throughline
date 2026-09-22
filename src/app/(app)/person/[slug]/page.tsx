@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getPersonBySlug, getFilmography } from '@/server/repos/titles';
+import { hydratePersonOnDemand } from '@/server/ingest/on-demand';
 import { posterUrl, profileUrl } from '@/lib/tmdb-image';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PersonPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const person = await getPersonBySlug(slug);
+  let person = await getPersonBySlug(slug);
   if (!person) notFound();
+
+  // A person enters the corpus from a credits payload, which carries only a
+  // name, a photo and a department. Their own record is fetched the first time
+  // someone actually looks at them -- see docs/api.md#ingest.
+  if (!person.detail_synced_at && person.tmdb_id) {
+    try {
+      if (await hydratePersonOnDemand(Number(person.tmdb_id))) {
+        person = (await getPersonBySlug(slug)) ?? person;
+      }
+    } catch {
+      // A provider failure is not a reason for the page to fail; it just
+      // renders with what we already had.
+    }
+  }
 
   const filmography = await getFilmography(person.id);
 
@@ -49,7 +64,13 @@ export default async function PersonPage({ params }: { params: Promise<{ slug: s
             className="text-xs uppercase tracking-wide"
             style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
           >
-            {[person.known_for_department, person.place_of_birth].filter(Boolean).join(' · ')}
+            {[
+              person.known_for_department,
+              lifespan(person.birthday, person.deathday),
+              person.place_of_birth,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
       </header>
@@ -107,4 +128,24 @@ export default async function PersonPage({ params }: { params: Promise<{ slug: s
       ))}
     </div>
   );
+}
+
+/**
+ * "b. 1967" while living, "1967-2024" once not.
+ *
+ * Takes Date OR string because the driver hands back a Date for a DATE column
+ * and a string elsewhere; assuming string threw at runtime and took the whole
+ * page down with it, error boundary and all.
+ */
+function year(v: Date | string | null): string | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : String(d.getUTCFullYear());
+}
+
+function lifespan(birthday: Date | string | null, deathday: Date | string | null): string | null {
+  const born = year(birthday);
+  const died = year(deathday);
+  if (!born) return died ? `d. ${died}` : null;
+  return died ? `${born}\u2013${died}` : `b. ${born}`;
 }

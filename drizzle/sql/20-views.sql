@@ -155,7 +155,14 @@ CREATE OR REPLACE VIEW sem.person AS
       SELECT jsonb_object_agg(predicate, n)
       FROM (SELECT cr.predicate, count(DISTINCT cr.title_id) AS n
             FROM core.credit cr WHERE cr.person_id = p.id GROUP BY cr.predicate) s
-    ), '{}'::jsonb) AS role_summary
+    ), '{}'::jsonb) AS role_summary,
+    -- detail_synced_at, not synced_at: the latter is set the moment a credits
+    -- payload creates the person, so it cannot distinguish "has no biography"
+    -- from "nobody ever asked TMDB for one".
+    p.detail_synced_at,
+    (SELECT x.source_id FROM core.external_id x
+      WHERE x.entity_type = 'person' AND x.entity_id = p.id AND x.source = 'tmdb'
+      LIMIT 1) AS tmdb_id
   FROM core.person p;
 
 CREATE OR REPLACE VIEW sem.concept AS

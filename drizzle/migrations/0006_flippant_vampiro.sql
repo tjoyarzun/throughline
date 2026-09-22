@@ -1,0 +1,1 @@
+ALTER TABLE "core"."person" ADD COLUMN "detail_synced_at" timestamp with time zone;
