@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import '@/styles/globals.css';
+import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker';
+import { OfflineBanner } from '@/components/pwa/offline-banner';
 
 /**
  * The origin Next resolves relative metadata URLs against.
@@ -66,7 +68,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
+        <OfflineBanner />
         {children}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

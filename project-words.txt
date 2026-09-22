@@ -193,6 +193,7 @@ maskable
 matview
 matviews
 nanoid
+navigations
 neon
 networkidle
 nobypassrls

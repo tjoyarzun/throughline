@@ -51,6 +51,9 @@ function securityHeaders(nonce: string): Record<string, string> {
     // control that X-Frame-Options only approximates.
     "frame-ancestors 'none'",
     "object-src 'none'",
+    // Covered by default-src, but stated: the service worker is same-origin
+    // and a future default-src change must not silently un-register it.
+    "worker-src 'self'",
     // PRODUCTION ONLY. This rewrites every http:// subresource to https://,
     // which is free on a deployment that is already HTTPS and fatal on
     // http://localhost: every stylesheet and chunk gets upgraded to a port
@@ -98,6 +101,6 @@ export function middleware(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:png|jpg|svg|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:png|jpg|svg|ico)$).*)',
   ],
 };

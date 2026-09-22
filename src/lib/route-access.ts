@@ -19,6 +19,10 @@ export const PUBLIC_PREFIXES = [
   '/auth/', // the sign-in page itself
   '/api/auth/', // Better Auth handlers
   '/api/health',
+  // The service worker script itself. Without this the registration request is
+  // redirected to sign-in and the worker silently never installs.
+  '/sw.js',
+  '/offline',
 ] as const;
 
 /** Authenticate themselves with a bearer secret; a cookie redirect breaks them. */

@@ -221,3 +221,68 @@ test.describe('security headers', () => {
     expect(violations, violations.join(' | ')).toEqual([]);
   });
 });
+
+test.describe('offline', () => {
+  /**
+   * The installed app was an error page in airplane mode. Scope is read-only:
+   * offline writes need conflict resolution and a sync log, and a half-built
+   * version of that loses data quietly, which is worse than refusing.
+   */
+  test('the worker script is public and served as script', async ({ request }) => {
+    // /sw.js sits outside _next, so the middleware matcher would have gated it
+    // and registration would have 307'd to sign-in and failed in silence.
+    const res = await request.get('/sw.js', { maxRedirects: 0, failOnStatusCode: false });
+    expect(res.status(), 'the worker must not be behind the session gate').toBe(200);
+    expect(res.headers()['content-type']).toContain('javascript');
+  });
+
+  test('never intercepts auth, admin or cron', async ({ request }) => {
+    // Caching an auth response would hand a stale session to the next visit.
+    const sw = await (await request.get('/sw.js')).text();
+    for (const path of ['/api/auth/', '/api/admin/', '/api/cron/']) {
+      expect(sw, `${path} must be excluded from the worker`).toContain(path);
+    }
+    expect(sw, 'only GET may be cached').toContain("request.method !== 'GET'");
+  });
+
+  test('the offline fallback is reachable without a session', async ({ page }) => {
+    const res = await page.goto('/offline');
+    expect(res?.status()).toBe(200);
+    expect(page.url(), 'must not bounce to sign-in').not.toContain('/auth/signin');
+    await expect(page.getByRole('heading', { name: /no connection/i })).toBeVisible();
+  });
+
+  /**
+   * CHROMIUM ONLY, and that is a gap worth naming rather than hiding.
+   *
+   * Playwright's WebKit build throws "internal error" when a navigation is
+   * made offline while a service worker is active -- a harness limitation, not
+   * an application one. Safari is the actual target platform, so offline
+   * behavior there is verified by hand on a device, not here. Pretending this
+   * test covers it would be worse than admitting it does not.
+   */
+  test('a cached page still renders with the network cut', async ({
+    page,
+    context,
+    browserName,
+  }) => {
+    test.skip(
+      browserName === 'webkit',
+      'Playwright WebKit cannot navigate offline with an active worker',
+    );
+
+    await page.goto('/auth/signin');
+    await page.waitForLoadState('networkidle');
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForTimeout(800);
+
+    await context.setOffline(true);
+    try {
+      await page.goto('/auth/signin');
+      const body = (await page.textContent('body')) ?? '';
+      expect(body.trim().length, 'something must render').toBeGreaterThan(0);
+    } finally {
+      await context.setOffline(false);
+    }
+  });
+});
