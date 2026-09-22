@@ -42,6 +42,9 @@ export const SESSION_GATED_API_ROUTES = [
   // Typeahead over every graph node. Same reasoning as /api/search: it exposes
   // the whole corpus, and there is no reason for it to answer strangers.
   '/api/graph/search',
+  // Hands back the caller's entire history as a file. The session IS the
+  // authorization; there is no slug or token standing in for one.
+  '/api/me/export',
 ] as const;
 
 export const UNGATED_PREFIXES: readonly string[] = [

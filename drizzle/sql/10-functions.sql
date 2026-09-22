@@ -326,3 +326,81 @@ BEGIN
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;
 END $$;
+
+/* ── Account deletion ──────────────────────────────────────────────────────
+
+   The clearest statement the schema can make about the layer separation:
+   this removes every row the person created and does not touch a single row
+   of core. 4,972 titles, 60k people and the whole graph survive intact,
+   because none of it was ever theirs.
+
+   SECURITY DEFINER for two reasons, both structural rather than convenient:
+
+     app_web deliberately holds no DELETE on usr.state_event -- the event log
+     is append-only in the strongest sense available, no grant at all. The one
+     legitimate exception is the person taking their whole account with them,
+     and that exception lives here rather than as a grant that would also
+     permit quietly erasing a single inconvenient event.
+
+     usr.invite is ON DELETE NO ACTION, so an account that ever created or
+     redeemed an invite cannot be deleted until those references are released.
+     Everything else cascades. Getting that order wrong fails loudly with a
+     foreign key violation, which is how it was found.
+
+   Own account only. Not even an admin may delete someone else: admins can
+   revoke a session, which is reversible, where this is not. */
+CREATE OR REPLACE FUNCTION usr.delete_account(p_account uuid)
+RETURNS TABLE (entity text, rows_deleted int)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = usr, pg_temp
+AS $$
+DECLARE n int;
+BEGIN
+  IF p_account IS NULL OR p_account IS DISTINCT FROM usr.current_account_id() THEN
+    RAISE EXCEPTION 'may only delete your own account' USING ERRCODE = '42501';
+  END IF;
+
+  DELETE FROM usr.share WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'share'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.note WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'note'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.rating WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'rating'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.episode_progress WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'episode_progress'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.viewing WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'viewing'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.state_event WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'state_event'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.title_state WHERE account_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'title_state'; rows_deleted := n; RETURN NEXT;
+
+  /* Released, not deleted. An invite someone else redeemed is part of THEIR
+     account's history, and the code itself has to stay spent -- dropping the
+     row would hand a used invite back to whoever still has it. */
+  UPDATE usr.invite SET created_by = NULL WHERE created_by = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'invite_created'; rows_deleted := n; RETURN NEXT;
+
+  UPDATE usr.invite SET redeemed_by = NULL WHERE redeemed_by = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'invite_redeemed'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.auth_session WHERE user_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'session'; rows_deleted := n; RETURN NEXT;
+
+  DELETE FROM usr.oauth_account WHERE user_id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'oauth_account'; rows_deleted := n; RETURN NEXT;
+
+  /* Last. A hard delete, not a deleted_at stamp: the danger zone says the
+     data is gone, so it has to be gone. */
+  DELETE FROM usr.account WHERE id = p_account;
+  GET DIAGNOSTICS n = ROW_COUNT; entity := 'account'; rows_deleted := n; RETURN NEXT;
+
+  RETURN;
+END $$;

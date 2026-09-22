@@ -172,6 +172,26 @@ Email is the only PII stored. Notes may contain personal content — never logge
 reports (Sentry `beforeSend` scrubs `note`, `message`, `email`). Full JSON+CSV export and hard
 account deletion in `/me`; deletion drops `usr.*` and leaves `core.*` untouched.
 
+Both halves are `withUser`-scoped, so an unscoped query returns zero rows rather than everyone's.
+Three details are not obvious from that sentence and are load-bearing:
+
+- **Deletion runs as `usr.delete_account`, a SECURITY DEFINER function, own account only.** Not
+  even an admin may delete someone else — an admin can revoke a session, which is reversible,
+  where this is not. It has to be a definer function because `app_web` deliberately holds no
+  `DELETE` on `usr.state_event`; the append-only log has exactly one legitimate exception, and
+  that exception is a whole account leaving, not a grant that would also permit erasing a single
+  inconvenient event.
+- **`usr.invite` is `ON DELETE NO ACTION`**, so an account that created or redeemed an invite
+  cannot be deleted until those references are released. They are set to `NULL`, not deleted: a
+  spent code has to stay spent, or dropping the row hands a used invite back to whoever still
+  holds it.
+- **The export omits sessions and verification tokens.** They are credentials, not data — a copy
+  of a live session in a file the person then emails to themselves is a worse outcome than the
+  convenience is worth.
+
+Deletion returns a per-table receipt, which is what `/me` renders, and what the authz suite
+asserts against — including that `core.title` has the same row count afterwards.
+
 Not SOC 2 or HIPAA scope. No automated decision-making with legal effect, so GDPR Art. 22 is not
 engaged.
 

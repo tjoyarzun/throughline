@@ -5,6 +5,7 @@ import { ShareList } from '@/components/tracking/share-list';
 import { listMyShares } from '@/server/repos/shares';
 import { Chip } from '@/components/ui/chip';
 import { AdminPanel } from '@/components/admin/admin-panel';
+import { DataSection } from '@/components/account/data-section';
 import { adminInvites, adminUsers, isAdmin } from '@/server/repos/admin';
 
 export const metadata = { title: 'Me' };
@@ -90,14 +91,23 @@ export default async function MePage() {
           className="text-xs uppercase tracking-widest"
           style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
         >
+          Your data
+        </h2>
+        <DataSection email={user.email} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2
+          className="text-xs uppercase tracking-widest"
+          style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+        >
           Coming next
         </h2>
         <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
-          This is where data export, theme, region and household settings will live. Episode
-          tracking is the next thing being built.
+          Theme, region and household settings will live here.
         </p>
         <div className="flex flex-wrap gap-2">
-          {['Episodes', 'Data export', 'Households', 'Offline', 'Import'].map((f) => (
+          {['Households', 'Import', 'Availability', 'Awards'].map((f) => (
             <Chip key={f} variant="provenance">
               {f}
             </Chip>

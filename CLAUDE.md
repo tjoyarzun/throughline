@@ -7,25 +7,33 @@ two things connected?"_ with ranked, narrated paths through a knowledge graph.
 
 Personal project. Invite-only multi-user (Tommy + family). Next.js on Vercel, one Postgres on Neon.
 
-## Current phase: 7 — Sharing
+## Current phase: 10 — PWA, polish, hardening
 
-Phases 0-6 are complete, plus the Universe. Search, title, person and Library are live
-against a corpus of **4,972 titles** identical in local and production. Tracking works:
-status, favorites, half-star ratings with history, viewing events. The Universe has its hub,
-Focus mode, the path finder, and `/universe/me` with five metrics resolved from
-`ontology/metrics.yaml`.
+Phases 0-9 are complete. A corpus of **4,989 titles** with 58,693 people, 111,570 credits
+and 108,261 edges, identical in local and production. Tracking works end to end: status,
+favorites, half-star ratings with history, viewing events, episode progress. Sharing ships
+`usr.share` snapshots, the public `/s/[slug]` page and dynamic OG images. The Universe has
+its hub, Focus mode, the path finder, and `/universe/me` with five metrics resolved from
+`ontology/metrics.yaml`. `/me` carries the admin panel, invites, data export and account
+deletion.
 
-**Phase 7 is sharing** — `usr.share` snapshots, the public `/s/[slug]` page, and dynamic
-OG images. It is the only surface a stranger can reach, so it is also the portfolio surface.
+**Phase 10 is what is left**, in this order:
 
-**Three entity tables are legitimately empty, in both environments** — the code that fills them
-does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running ingest:
+|     | Item                                                                     | State                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Verify a Resend domain and move `EMAIL_FROM` off `onboarding@resend.dev` | **Blocking.** Until it is done, sign-in codes reach only the Resend account owner, so nobody else can be invited. `/api/health` reports `degraded` with the reason. |
+| 2   | Data export + account deletion                                           | Done                                                                                                                                                                |
+| 3   | Rate limiting on the auth endpoints and the path finder                  | Not started                                                                                                                                                         |
+| 4   | axe-core accessibility pass (AC-31…36)                                   | Not started                                                                                                                                                         |
 
-| Table               | Why empty                                                                   |
-| ------------------- | --------------------------------------------------------------------------- |
-| `core.episode`      | Phase 6. Seasons are ingested; episodes are not.                            |
-| `core.character`    | Character resolution is deliberately partial and not yet begun.             |
-| `core.edge_derived` | `similar_to` needs a `recompute_similar` handler, which is Phase 2 backlog. |
+**Two entity tables are legitimately sparse or empty, in both environments** — the code that
+fills them does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running
+ingest:
+
+| Table            | Why                                                                    |
+| ---------------- | ---------------------------------------------------------------------- |
+| `core.character` | Character resolution is deliberately partial and not yet begun.        |
+| `core.episode`   | 72 rows. Episodes are hydrated per show on demand, not seeded in bulk. |
 
 ### Production
 

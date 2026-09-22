@@ -56,6 +56,7 @@ GRANT EXECUTE ON FUNCTION usr.admin_create_invite(text, text, int) TO app_web;
 GRANT EXECUTE ON FUNCTION usr.admin_invites()          TO app_web;
 GRANT EXECUTE ON FUNCTION usr.admin_revoke_invite(text) TO app_web;
 GRANT EXECUTE ON FUNCTION usr.share_record_view(text)  TO app_web;
+GRANT EXECUTE ON FUNCTION usr.delete_account(uuid)     TO app_web;
 
 GRANT EXECUTE ON FUNCTION core.claim_jobs(int, text, interval)  TO app_ingest;
 GRANT EXECUTE ON FUNCTION core.finish_job(uuid)                 TO app_ingest;
