@@ -17,14 +17,24 @@ its hub, Focus mode, the path finder, and `/universe/me` with five metrics resol
 `ontology/metrics.yaml`. `/me` carries the admin panel, invites, data export and account
 deletion.
 
-**Phase 10 is what is left**, in this order:
+**Phase 10 is complete.** What remains before the phase DoD can be signed off is not code:
 
-|     | Item                                                                     | State                                                                                                                                                               |
-| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Verify a Resend domain and move `EMAIL_FROM` off `onboarding@resend.dev` | **Blocking.** Until it is done, sign-in codes reach only the Resend account owner, so nobody else can be invited. `/api/health` reports `degraded` with the reason. |
-| 2   | Data export + account deletion                                           | Done                                                                                                                                                                |
-| 3   | Rate limiting on the auth endpoints and the path finder                  | Done                                                                                                                                                                |
-| 4   | axe-core accessibility pass (AC-31…36)                                   | Done                                                                                                                                                                |
+- A manual pass on a physical iPhone — AC-32 (keyboard) and AC-33 (VoiceOver). axe covers roughly a
+  third of WCAG and cannot judge focus order or whether alt text is honest.
+- A deliberate rollback drill, exercised once so it is known to work rather than assumed.
+
+Still deferred, each a decision rather than an oversight: View Transitions, visual-regression
+baselines, Sentry, the path cache (p95 173ms against a 150ms target), rotating the Resend key, and
+RLS on `usr.auth_session` (currently covered by a revoked grant, the same way `usr.invite` now is).
+
+What shipped in this phase:
+
+|     | Item                                                                     | State                                                                                            |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| 1   | Verify a Resend domain and move `EMAIL_FROM` off `onboarding@resend.dev` | Done — sending from `throughline.oyarzun.com`; `/api/health` reports `delivers_to_anyone: true`. |
+| 2   | Data export + account deletion                                           | Done                                                                                             |
+| 3   | Rate limiting on the auth endpoints and the path finder                  | Done                                                                                             |
+| 4   | axe-core accessibility pass (AC-31…36)                                   | Done                                                                                             |
 
 **Two entity tables are legitimately sparse or empty, in both environments** — the code that
 fills them does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running
