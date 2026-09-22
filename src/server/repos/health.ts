@@ -54,7 +54,7 @@ export interface HealthReport {
   status: 'ok' | 'degraded' | 'error';
   problems: string[];
   db: string;
-  auth?: { secret: boolean; email_delivery: boolean };
+  auth?: { secret: boolean; email_delivery: boolean; least_privilege: boolean };
   job_queue?: unknown;
   cron?: Record<string, unknown>;
   corpus?: unknown;
@@ -173,6 +173,24 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
      * provider the flow returns a 500 at the last step, which looks like a bug
      * in the app rather than missing configuration — so it is reported here.
      */
+    /**
+     * Whether authentication is on the least-privilege role or has fallen back
+     * to the application connection.
+     *
+     * Reported because the fallback is SILENT by nature: everything works
+     * either way, and the only difference is that the owner connection can
+     * read every rating, viewing record and note in the database. It went
+     * unnoticed from Phase 1 until it was looked for.
+     */
+    const authLeastPrivilege = Boolean(
+      process.env.AUTH_DATABASE_URL ?? process.env.AUTH_DB_PASSWORD,
+    );
+    if (!authLeastPrivilege && process.env.NODE_ENV === 'production') {
+      problems.push(
+        'authentication is using the application connection, not app_auth — set AUTH_DB_PASSWORD',
+      );
+    }
+
     const emailConfigured = Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
     const authConfigured = Boolean(process.env.BETTER_AUTH_SECRET);
     if (!authConfigured) problems.push('BETTER_AUTH_SECRET is not set — sign-in cannot work');
@@ -186,7 +204,11 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       status: problems.length === 0 ? 'ok' : 'degraded',
       problems,
       db: 'ok',
-      auth: { secret: authConfigured, email_delivery: emailConfigured },
+      auth: {
+        secret: authConfigured,
+        email_delivery: emailConfigured,
+        least_privilege: authLeastPrivilege,
+      },
       job_queue: queue,
       cron: Object.fromEntries(cronRows.map((c) => [c.kind, c])),
       corpus,
