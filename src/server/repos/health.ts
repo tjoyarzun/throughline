@@ -54,7 +54,12 @@ export interface HealthReport {
   status: 'ok' | 'degraded' | 'error';
   problems: string[];
   db: string;
-  auth?: { secret: boolean; email_delivery: boolean; least_privilege: boolean };
+  auth?: {
+    secret: boolean;
+    email_delivery: boolean;
+    delivers_to_anyone: boolean;
+    least_privilege: boolean;
+  };
   job_queue?: unknown;
   cron?: Record<string, unknown>;
   corpus?: unknown;
@@ -200,6 +205,26 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       );
     }
 
+    /**
+     * Configured is not the same as able to deliver.
+     *
+     * Resend's shared sender only delivers to the Resend account owner's own
+     * address; every other recipient is refused with a 403 before a message
+     * leaves. Confirmed against the live API, not inferred. So the app can
+     * report email as working, pass every check, and still be unable to admit
+     * a single invited person -- and the failure lands on THEIR screen, as a
+     * code that never arrives, where the owner never sees it.
+     *
+     * It is a property of the from address, so it costs nothing to detect.
+     */
+    const sharedSender = (process.env.EMAIL_FROM ?? '').endsWith('@resend.dev');
+    if (emailConfigured && sharedSender) {
+      problems.push(
+        'EMAIL_FROM is the shared resend.dev sender — sign-in codes reach only the ' +
+          'Resend account owner. Verify a domain at resend.com/domains to invite anyone else.',
+      );
+    }
+
     return {
       status: problems.length === 0 ? 'ok' : 'degraded',
       problems,
@@ -207,6 +232,8 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       auth: {
         secret: authConfigured,
         email_delivery: emailConfigured,
+        // Whether anyone OTHER than the owner can actually receive a code.
+        delivers_to_anyone: emailConfigured && !sharedSender,
         least_privilege: authLeastPrivilege,
       },
       job_queue: queue,
