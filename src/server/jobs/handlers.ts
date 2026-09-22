@@ -27,10 +27,15 @@ const captureRaw =
   };
 
 /**
- * Titles per enrich_wikidata job: four SPARQL batches. Sized to finish well
- * inside a function's wall clock, since exceeding it loses the whole window.
+ * Titles per enrich_wikidata job: ONE SPARQL batch.
+ *
+ * Four batches (240) blew the 60s function limit in production. The drain's
+ * 45s budget does not help here -- it is checked between jobs, so a single
+ * long job takes the whole function down with it. One batch runs in a few
+ * seconds, and the job chains, so the only cost of a small window is more
+ * rows in the queue.
  */
-const WIKIDATA_TITLES_PER_JOB = 240;
+const WIKIDATA_TITLES_PER_JOB = 60;
 
 export const HANDLERS: Record<string, Handler> = {
   /** Fetch a title's full record and write it to core. The lazy-ingest path. */

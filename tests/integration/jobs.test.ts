@@ -40,6 +40,35 @@ run('core.job queue', () => {
     expect(new Set(ids).size, 'no job claimed twice').toBe(40);
   });
 
+  it('reclaims a job whose worker died mid-run', async () => {
+    // A worker killed mid-job -- function timeout, deploy, instance recycled --
+    // leaves the row in 'running' with nothing to finish it. Before leases,
+    // that work was stranded forever AND silently: not queued so depth looked
+    // healthy, not failed so nothing alerted. Production lost a Wikidata job
+    // to exactly this.
+    await a`SELECT core.enqueue_job('test_lease', ${a.json({ n: 1 } as never)})`;
+    const claimed = await a<{ id: string }[]>`SELECT id FROM core.claim_jobs(1, 'doomed-worker')`;
+    expect(claimed).toHaveLength(1);
+
+    // Still leased: nobody else may take it.
+    const tooSoon = await b<{ id: string }[]>`SELECT id FROM core.claim_jobs(1, 'worker-b')`;
+    expect(tooSoon, 'a live lease must not be stealable').toHaveLength(0);
+
+    // Age the lease past its expiry rather than waiting five minutes.
+    await a`UPDATE core.job SET locked_at = now() - interval '10 minutes'
+            WHERE id = ${claimed[0]!.id}`;
+
+    const reclaimed = await b<{ id: string; attempts: number }[]>`
+      SELECT id, attempts FROM core.claim_jobs(1, 'worker-b')`;
+    expect(
+      reclaimed.map((r) => r.id),
+      'expired lease must be reclaimable',
+    ).toEqual([claimed[0]!.id]);
+    // attempts still climbs, so fail_job's cap stops a genuinely poisonous job
+    // rather than letting it cycle forever.
+    expect(reclaimed[0]!.attempts).toBe(2);
+  });
+
   it('does not enqueue the same pending work twice', async () => {
     const [one] = await a<{ enqueue_job: string }[]>`
       SELECT core.enqueue_job('test_dedupe', ${a.json({ titleId: 42 } as never)})`;

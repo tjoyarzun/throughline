@@ -3,13 +3,33 @@
 -- Atomically claim up to n queued jobs. FOR UPDATE SKIP LOCKED is what makes
 -- concurrent drains safe: two workers never receive the same job, and neither
 -- blocks the other.
-CREATE OR REPLACE FUNCTION core.claim_jobs(n int, worker text)
+-- Claims are a LEASE, not a permanent mark.
+--
+-- A worker that dies mid-job -- function timeout, deploy, instance recycled --
+-- leaves its job in 'running' with nothing to finish it. Claiming only 'queued'
+-- rows stranded that work permanently and silently: it is not queued, so depth
+-- looks healthy; not failed, so nothing alerts; and never retried. One
+-- FUNCTION_INVOCATION_TIMEOUT on a Wikidata job is how this was found.
+--
+-- So a 'running' row whose lease has expired is claimable again. The lease is
+-- five minutes -- comfortably longer than any function may run, so a lease that
+-- old means the worker is definitively gone, never merely slow. attempts still
+-- increments, so fail_job's cap applies and a genuinely poisonous job stops
+-- rather than cycling forever.
+-- Dropped explicitly: adding the lease parameter changes the signature, and
+-- CREATE OR REPLACE would leave the old two-argument version in place as an
+-- OVERLOAD. Two-argument calls would keep resolving to it -- the reclaim would
+-- appear to ship while every caller still used the version without it.
+DROP FUNCTION IF EXISTS core.claim_jobs(int, text);
+
+CREATE OR REPLACE FUNCTION core.claim_jobs(n int, worker text, lease interval DEFAULT interval '5 minutes')
 RETURNS SETOF core.job AS $$
   UPDATE core.job j
   SET status = 'running', locked_at = now(), locked_by = worker, attempts = j.attempts + 1
   WHERE j.id IN (
     SELECT id FROM core.job
-    WHERE status = 'queued' AND run_after <= now()
+    WHERE (status = 'queued' AND run_after <= now())
+       OR (status = 'running' AND locked_at < now() - lease)
     ORDER BY run_after, id
     LIMIT n
     FOR UPDATE SKIP LOCKED
