@@ -27,6 +27,18 @@ does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running 
 | `core.character`    | Character resolution is deliberately partial and not yet begun.             |
 | `core.edge_derived` | `similar_to` needs a `recompute_similar` handler, which is Phase 2 backlog. |
 
+### Production
+
+|                |                                                   |
+| -------------- | ------------------------------------------------- |
+| App            | https://throughline-ontology.vercel.app           |
+| Vercel project | `throughline-ontology` (team `agora-innovations`) |
+
+The former `throughline-mu-seven.vercel.app` 308-redirects here, preserving
+path and method, so links handed out before the rename still resolve. The
+origin lives in `NEXT_PUBLIC_SITE_URL`, which is also what `metadataBase` and
+Better Auth's `trustedOrigins` read — change it in one place, not four.
+
 ### Running maintenance against production
 
 There is no local path to the production database — Vercel keeps the connection string
