@@ -25,6 +25,14 @@ export const dark = {
   /** Third text tier when one is genuinely needed. Passes AA for body. */
   textFaint: '#7B818A',
   accent: '#E8C77A',
+  /**
+   * Foreground for anything sitting ON an accent-filled surface -- the primary
+   * buttons. Not `bg`, even though it happens to match in this scheme: the
+   * light scheme's `bg` is near-white, and using it there put 3.35:1 text on
+   * the accent. A named token forces the pairing to be declared and therefore
+   * measured.
+   */
+  accentInk: '#0B0C0E',
   /** Focus ring. Must clear 3:1 against every ground it lands on (1.4.11, 2.4.11). */
   focus: '#E8C77A',
   positive: '#6FAE8C',
@@ -45,6 +53,12 @@ export const light = {
   textFaint: '#6B7078',
   /** NON-TEXT UI ONLY in light mode (3.2:1). Never an accent-colored text label. */
   accent: '#A8842C',
+  /**
+   * Near-black, not the near-white `bg`. A filled accent button is the one
+   * place light mode inverts: ink on gold reads at 5.1:1, where paper on gold
+   * read at 3.35:1 and shipped that way until axe ran against light mode.
+   */
+  accentInk: '#16181B',
   positive: '#3E7D5F',
   negative: '#A84A3F',
   /** 3.35:1 on bg, 3.50:1 on surface. */
@@ -172,6 +186,22 @@ export const USAGE_MATRIX: readonly Usage[] = [
     on: 'surface',
     kind: 'nonText',
     where: 'focus ring on a card',
+  },
+  // Text ON the accent, which is a different question from the accent on a
+  // ground and was missing from this matrix while five buttons relied on it.
+  {
+    scheme: 'dark',
+    token: 'accentInk',
+    on: 'accent',
+    kind: 'body',
+    where: 'label on a filled accent button',
+  },
+  {
+    scheme: 'light',
+    token: 'accentInk',
+    on: 'accent',
+    kind: 'body',
+    where: 'label on a filled accent button',
   },
   // Light accent is a UI indicator only — an accent-colored text label would fail AA.
   {

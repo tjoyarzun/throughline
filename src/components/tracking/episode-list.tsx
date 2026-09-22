@@ -91,7 +91,11 @@ export function EpisodeList({
             <button
               type="button"
               className="min-h-9 rounded-full px-3 text-xs"
-              style={{ background: 'var(--tl-accent)', color: 'var(--tl-bg)', fontWeight: 600 }}
+              style={{
+                background: 'var(--tl-accent)',
+                color: 'var(--tl-accent-ink)',
+                fontWeight: 600,
+              }}
               onClick={() =>
                 startTransition(async () => {
                   await confirmFinishedAction({ titleId, slug });

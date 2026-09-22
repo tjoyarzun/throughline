@@ -41,13 +41,24 @@ feels bespoke. **Never used for text.**
 ### Contrast rules — tested, not asserted
 
 `tests/unit/contrast.test.ts` computes real WCAG ratios for every entry in `USAGE_MATRIX` and fails
-the build on a shortfall. Two rules came out of actually running the math:
+the build on a shortfall. Three rules came out of actually running the math:
 
 1. **`faint` is a decorative token only** — hairline dividers. It does not meet 4.5:1 and must never
    carry text. `textFaint` exists for a genuine third text tier.
 2. **Light-mode `accent` is a non-text UI token only** (3.35:1). Star fills, focus rings, and
    indicator bars are fine at the 3:1 non-text bar. **Active nav labels use `text` plus an accent
    indicator bar, never accent-colored text.**
+3. **Text on a FILLED accent surface uses `accentInk`, never `bg`.** The primary buttons put a label
+   on the accent, which is a different question from the accent on a ground — and it was the one
+   combination the usage matrix never declared. In dark mode `bg` and `accentInk` happen to be the
+   same near-black, so five buttons used `bg` and looked correct; in light mode `bg` is near-white,
+   and near-white on gold is **3.35:1**. It shipped that way and was caught only when axe-core was
+   first pointed at light mode. The matrix now declares both pairings, so the unit test measures them
+   (light is 5.09:1) rather than the whole thing resting on the two schemes coincidentally agreeing.
+
+Rule 3 is the general lesson, and it is the same one this codebase keeps relearning: **a rule is only
+as good as the cases enumerated for it.** The matrix was not wrong, it was incomplete, and an
+incomplete matrix passes.
 
 `decorative` carries a 1.0 threshold on purpose: SC 1.4.11 explicitly exempts purely decorative
 elements. The moment a border indicates state, focus, or a field boundary it is `nonText` and must

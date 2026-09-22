@@ -17,8 +17,12 @@ export default defineConfig({
     colorScheme: 'dark',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'iphone', use: { ...devices['iPhone 14 Pro'] } },
+    // Writes the session cookie and the fixture rows the accessibility suite
+    // needs. A dependency rather than a global setup so its failures are
+    // reported as a failing test rather than a runner crash.
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
+    { name: 'iphone', use: { ...devices['iPhone 14 Pro'] }, dependencies: ['setup'] },
   ],
   // Spread rather than `webServer: undefined` — exactOptionalPropertyTypes
   // distinguishes "absent" from "explicitly undefined", and Playwright's type

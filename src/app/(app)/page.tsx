@@ -198,7 +198,7 @@ function ZeroState({ signedOut = false }: { signedOut?: boolean }) {
         <Link
           href={signedOut ? '/auth/signin' : '/search'}
           className="mt-2 min-h-11 rounded-full px-5 py-2.5 text-sm"
-          style={{ background: 'var(--tl-accent)', color: 'var(--tl-bg)', fontWeight: 600 }}
+          style={{ background: 'var(--tl-accent)', color: 'var(--tl-accent-ink)', fontWeight: 600 }}
         >
           {signedOut ? 'Sign in' : 'Find something'}
         </Link>

@@ -24,7 +24,7 @@ deletion.
 | 1   | Verify a Resend domain and move `EMAIL_FROM` off `onboarding@resend.dev` | **Blocking.** Until it is done, sign-in codes reach only the Resend account owner, so nobody else can be invited. `/api/health` reports `degraded` with the reason. |
 | 2   | Data export + account deletion                                           | Done                                                                                                                                                                |
 | 3   | Rate limiting on the auth endpoints and the path finder                  | Done                                                                                                                                                                |
-| 4   | axe-core accessibility pass (AC-31…36)                                   | Not started                                                                                                                                                         |
+| 4   | axe-core accessibility pass (AC-31…36)                                   | Done                                                                                                                                                                |
 
 **Two entity tables are legitimately sparse or empty, in both environments** — the code that
 fills them does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running

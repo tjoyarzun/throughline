@@ -31,6 +31,9 @@
   --tl-text-dim: #5f6670;
   --tl-text-faint: #6b7078;
   --tl-accent: #a8842c;
+  /* Foreground for content on a filled accent surface. Near-black here, on
+     purpose: near-white on this gold is 3.35:1 and fails AA. */
+  --tl-accent-ink: #16181b;
   --tl-focus: #a8842c;
   --tl-positive: #3e7d5f;
   --tl-negative: #a84a3f;
@@ -49,6 +52,7 @@
     --tl-text-dim: #9aa0a8;
     --tl-text-faint: #7b818a;
     --tl-accent: #e8c77a;
+    --tl-accent-ink: #0b0c0e;
     --tl-focus: #e8c77a;
     --tl-positive: #6fae8c;
     --tl-negative: #c2685e;
@@ -67,6 +71,7 @@
   --tl-text-dim: #9aa0a8;
   --tl-text-faint: #7b818a;
   --tl-accent: #e8c77a;
+  --tl-accent-ink: #0b0c0e;
   --tl-focus: #e8c77a;
   --tl-positive: #6fae8c;
   --tl-negative: #c2685e;

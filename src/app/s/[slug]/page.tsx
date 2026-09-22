@@ -195,7 +195,7 @@ export default async function SharePage({ params }: { params: Promise<{ slug: st
         <Link
           href={`/title/${title.slug}`}
           className="flex min-h-11 items-center justify-center rounded-full px-5 text-sm"
-          style={{ background: 'var(--tl-accent)', color: 'var(--tl-bg)', fontWeight: 600 }}
+          style={{ background: 'var(--tl-accent)', color: 'var(--tl-accent-ink)', fontWeight: 600 }}
         >
           Open in Throughline
         </Link>
