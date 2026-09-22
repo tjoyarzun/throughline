@@ -60,8 +60,20 @@ CREATE OR REPLACE FUNCTION core.enqueue_job(job_kind text, job_payload jsonb)
 RETURNS uuid AS $$
 DECLARE existing uuid; new_id uuid;
 BEGIN
+  -- PENDING work only, not running work.
+  --
+  -- Including 'running' silently killed every self-chaining job. A job that
+  -- walks a backlog enqueues its successor while it is itself running, with
+  -- the same payload -- so it matched ITSELF, the insert was skipped, and the
+  -- chain stopped after exactly one link. hydrate_people and refresh_stale
+  -- both looked like they worked: they ran, reported success, and quietly did
+  -- one batch instead of the backlog.
+  --
+  -- Dedupe exists so the same pending work is not queued twice. A job that is
+  -- already running is no longer pending, and every handler is idempotent, so
+  -- the worst case here is one redundant batch rather than a stalled walk.
   SELECT id INTO existing FROM core.job
-  WHERE kind = job_kind AND payload = job_payload AND status IN ('queued', 'running')
+  WHERE kind = job_kind AND payload = job_payload AND status = 'queued'
   LIMIT 1;
   IF existing IS NOT NULL THEN RETURN existing; END IF;
   INSERT INTO core.job (kind, payload) VALUES (job_kind, job_payload) RETURNING id INTO new_id;

@@ -40,6 +40,23 @@ run('core.job queue', () => {
     expect(new Set(ids).size, 'no job claimed twice').toBe(40);
   });
 
+  it('lets a running job enqueue its own successor', async () => {
+    // Self-chaining is how the long walks work -- Wikidata enrichment, the
+    // TMDB refresh, the people backfill. Deduping against 'running' as well as
+    // 'queued' made a chaining job match ITSELF and skip the insert, so every
+    // one of them stopped after a single batch while reporting success.
+    const payload = { batch: 25 };
+    await a`SELECT core.enqueue_job('test_chain', ${a.json(payload as never)})`;
+    const [claimed] = await a<{ id: string }[]>`SELECT id FROM core.claim_jobs(1, 'w')`;
+    expect(claimed).toBeDefined();
+
+    // The job is now running. Its successor must still be able to join the queue.
+    await a`SELECT core.enqueue_job('test_chain', ${a.json(payload as never)})`;
+    const [queued] = await a<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM core.job WHERE kind = 'test_chain' AND status = 'queued'`;
+    expect(queued!.n, 'the successor exists').toBe(1);
+  });
+
   it('reclaims a job whose worker died mid-run', async () => {
     // A worker killed mid-job -- function timeout, deploy, instance recycled --
     // leaves the row in 'running' with nothing to finish it. Before leases,
