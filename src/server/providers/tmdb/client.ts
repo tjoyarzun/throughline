@@ -115,7 +115,17 @@ export class TmdbClient {
     return { ...this.stats, circuit: this.breaker.state };
   }
 
-  private async request(path: string, params: Record<string, string> = {}): Promise<unknown> {
+  /**
+   * @param revalidate seconds to let Next's data cache serve this response.
+   *   Omitted for anything we store: a cached payload that then gets written to
+   *   core would freeze stale data into the corpus. Used only for the volatile
+   *   ranking endpoints, where a few hours old is the point.
+   */
+  private async request(
+    path: string,
+    params: Record<string, string> = {},
+    revalidate?: number,
+  ): Promise<unknown> {
     this.breaker.assertClosed(path);
     const url = new URL(BASE + path);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -128,6 +138,7 @@ export class TmdbClient {
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${this.token}`, accept: 'application/json' },
           signal: AbortSignal.timeout(15_000),
+          ...(revalidate === undefined ? {} : { next: { revalidate } }),
         });
 
         if (res.status === 429) {
@@ -242,5 +253,14 @@ export class TmdbClient {
 
   async discover(params: Record<string, string>): Promise<unknown> {
     return this.request('/discover/movie', params);
+  }
+
+  /** Volatile discovery lists. Cached, never captured to raw, never stored. */
+  async discoverCached(
+    path: '/discover/movie' | '/discover/tv',
+    params: Record<string, string>,
+    revalidate: number,
+  ): Promise<unknown> {
+    return this.request(path, params, revalidate);
   }
 }

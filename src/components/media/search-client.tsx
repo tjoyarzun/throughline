@@ -29,7 +29,18 @@ interface RemoteResult {
  * aborted when the query changes — otherwise a slow response for "ar" can land
  * after a fast one for "arrival" and overwrite it.
  */
-export function SearchClient({ initial }: { initial: LocalResult[] }) {
+export function SearchClient({
+  initial,
+  idle,
+}: {
+  initial: LocalResult[];
+  /**
+   * Server-rendered sections shown only when the box is empty. Passed in
+   * rather than fetched here so the discovery lists stay on the server, where
+   * the TMDB token lives and the response can be cached.
+   */
+  idle?: React.ReactNode;
+}) {
   const [q, setQ] = useState('');
   const [local, setLocal] = useState<LocalResult[]>([]);
   const [remote, setRemote] = useState<RemoteResult[]>([]);
@@ -90,6 +101,8 @@ export function SearchClient({ initial }: { initial: LocalResult[] }) {
           color: 'var(--tl-text)',
         }}
       />
+
+      {!showing && idle}
 
       {!showing && (
         <p

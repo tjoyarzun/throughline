@@ -119,6 +119,28 @@ export async function similarTitles(titleId: string, limit = 12): Promise<Simila
     LIMIT ${limit}`;
 }
 
+export interface LocalMatch {
+  tmdb_id: string;
+  id: string;
+  slug: string;
+  kind: string;
+}
+
+/**
+ * Which of these TMDB ids we already hold.
+ *
+ * Discovery lists come from the provider, so most items have no local row yet.
+ * The ones we DO have should link to their real page rather than to a
+ * provisional slug that would re-ingest something already in the corpus.
+ */
+export async function localByTmdbIds(ids: number[]): Promise<Map<string, LocalMatch>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db()<LocalMatch[]>`
+    SELECT tmdb_id, id, slug, kind FROM sem.title
+    WHERE tmdb_id = ANY(${ids.map(String)})`;
+  return new Map(rows.map((r) => [`${r.kind}:${r.tmdb_id}`, r]));
+}
+
 /** Trending, for the empty search state — something to show before typing. */ /** Trending, for the empty search state — something to show before typing. */
 export async function popularTitles(limit = 18): Promise<TitleSummary[]> {
   return db()<TitleSummary[]>`

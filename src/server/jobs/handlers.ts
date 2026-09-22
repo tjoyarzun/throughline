@@ -111,6 +111,55 @@ export const HANDLERS: Record<string, Handler> = {
     await deriveSimilar(sql);
   },
 
+  /**
+   * Re-sync the STALEST titles from TMDB.
+   *
+   * Nothing refreshed anything. After the initial seed, a title's data was
+   * frozen at its synced_at forever: ratings, runtimes, posters, and the air
+   * dates of shows still in production. /api/health even measured
+   * pct_fresh -- and reported it without ever checking it, so the number was
+   * going to read 0% within two days and nothing would have said a word.
+   *
+   * Priority order is deliberate. Titles someone actually TRACKS come first,
+   * then anything whose release is recent or still ahead (those are the
+   * records that genuinely change), then the rest by age. A flat "oldest
+   * first" pass would spend the budget refreshing catalog films from 1974
+   * whose facts have not moved in fifty years.
+   */
+  refresh_stale: async (sql, payload) => {
+    const batch = Math.min(Number(payload.batch ?? 60), 200);
+    const rows = await sql<{ tmdb_id: string; kind: string }[]>`
+      SELECT x.source_id AS tmdb_id, t.kind
+      FROM core.title t
+      JOIN core.external_id x
+        ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source = 'tmdb'
+      WHERE t.synced_at < now() - interval '7 days'
+      ORDER BY
+        EXISTS (SELECT 1 FROM usr.title_state ts WHERE ts.title_id = t.id) DESC,
+        (t.release_date IS NULL OR t.release_date > now()::date - interval '180 days') DESC,
+        t.synced_at ASC
+      LIMIT ${batch}`;
+
+    if (rows.length === 0) return;
+
+    const ing = new Ingestor(sql, new TmdbClient(undefined, captureRaw(sql)));
+    for (const r of rows) {
+      const tmdbId = Number(r.tmdb_id);
+      if (!Number.isFinite(tmdbId)) continue;
+      if (r.kind === 'show') await ing.ingestShow(tmdbId);
+      else await ing.ingestMovie(tmdbId);
+    }
+
+    // Chain while stale titles remain, the way the Wikidata walk does, so one
+    // nightly trigger works through the backlog instead of nibbling at it.
+    const [more] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM core.title
+      WHERE synced_at < now() - interval '7 days'`;
+    if ((more?.n ?? 0) > 0) {
+      await sql`SELECT core.enqueue_job('refresh_stale', ${sql.json({ batch } as never)})`;
+    }
+  },
+
   /** Nightly. Node degree drives the hub penalty in path ranking. */
   refresh_degree: async (sql) => {
     await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY core.node_degree`;

@@ -30,6 +30,12 @@ const QUEUE_STALL_S = 900;
  * lives in docs/ontology.md where a goal belongs.
  */
 const MIN_THEME_COVERAGE_PCT = 70;
+/**
+ * Share of the corpus re-synced within a week. Seven days, not the 48 hours
+ * the spec first named: a weekly refresh cadence cannot satisfy a 48-hour
+ * window, and a threshold that can never be met is noise, not a signal.
+ */
+const MIN_FRESH_PCT = 80;
 
 export interface HealthReport {
   status: 'ok' | 'degraded' | 'error';
@@ -81,7 +87,7 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     const pctInt = (a: number, b: number) => (b === 0 ? null : Math.round((100 * a) / b));
     const [fresh] = await sql<{ pct_fresh: number | null }[]>`
       SELECT round(100.0 * count(*) FILTER (
-               WHERE synced_at > now() - interval '48 hours') / nullif(count(*), 0))::int
+               WHERE synced_at > now() - interval '7 days') / nullif(count(*), 0))::int
              AS pct_fresh
       FROM core.title`;
 
@@ -129,6 +135,15 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
       if (max && c.age_s !== null && c.age_s > max) problems.push(`${c.kind} stale (${c.age_s}s)`);
       if (c.consecutive_failures >= 3)
         problems.push(`${c.kind} failing (${c.consecutive_failures})`);
+    }
+    // Reported since the beginning and never checked. The spec calls for it
+    // (docs/deployment.md), and without it "we have not talked to TMDB in a
+    // month" looks exactly like a healthy system.
+    if ((corpus.pct_fresh ?? 100) < MIN_FRESH_PCT) {
+      problems.push(
+        `only ${corpus.pct_fresh}% of titles synced in the last 7 days ` +
+          `(below ${MIN_FRESH_PCT}%) — enqueue refresh_stale`,
+      );
     }
     if ((corpus?.themed_pct ?? 100) < MIN_THEME_COVERAGE_PCT) {
       problems.push(

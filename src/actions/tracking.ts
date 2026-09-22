@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { requireAccountId } from '@/server/auth/session';
 import * as user from '@/server/repos/user';
 import { enqueueEpisodeHydration } from '@/server/repos/tracking-hooks';
+import { hydrateOnDemand } from '@/server/ingest/on-demand';
+import { getTitleByTmdbId } from '@/server/repos/titles';
 import { drainQueue } from '@/server/jobs/drain';
 import { pooledDatabaseUrl } from '@/server/db/resolve-url';
 import { STATUSES, DATE_PRECISIONS, MEDIUMS, RATING_MIN, RATING_MAX } from '@/lib/tracking';
@@ -160,4 +162,36 @@ export async function removeFromLibraryAction(input: {
   await user.removeFromLibrary(accountId, parsed.data.titleId);
   revalidateTracking(parsed.data.slug);
   return { ok: true };
+}
+
+/**
+ * Add something to the watchlist straight from a discovery list.
+ *
+ * New releases and upcoming titles usually are NOT in the corpus yet, and a
+ * watchlist row needs a real title to point at. So this ingests first when it
+ * has to. That costs a TMDB round trip, which is why the button reports
+ * pending state rather than pretending to be instant -- an optimistic tick
+ * that silently takes two seconds is worse than an honest spinner.
+ */
+export async function addToWatchlistByTmdbAction(input: {
+  tmdbId: number;
+  kind: string;
+}): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  const accountId = await requireAccountId();
+  const parsed = z
+    .object({ tmdbId: z.number().int().positive(), kind: z.enum(['movie', 'show']) })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid request' };
+
+  const { tmdbId, kind } = parsed.data;
+  let title = await getTitleByTmdbId(tmdbId, kind);
+  if (!title) {
+    await hydrateOnDemand(tmdbId, kind);
+    title = await getTitleByTmdbId(tmdbId, kind);
+  }
+  if (!title) return { ok: false, error: 'could not load that title' };
+
+  await user.setStatus(accountId, title.id, 'watchlist');
+  revalidateTracking(title.slug);
+  return { ok: true, slug: title.slug };
 }
