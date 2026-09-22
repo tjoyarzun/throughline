@@ -160,11 +160,14 @@ test.describe('sharing', () => {
   });
 
   test('share routes are public, not behind the session gate', async ({ request }) => {
+    // Asserts ROUTING, so it must not depend on a database. The first version
+    // demanded 200 or 404, which conflated "got past middleware" with "the
+    // data layer answered" -- and failed on every CI push for a day because
+    // the e2e job had no Postgres and the page threw a 500. Whether the route
+    // is gated is answered by where it went, not by what it returned.
     const res = await request.get('/s/anything', { failOnStatusCode: false, maxRedirects: 0 });
-    expect(
-      [404, 200].includes(res.status()),
-      `expected the share route to render or 404, got ${res.status()}`,
-    ).toBe(true);
+    expect(res.status(), 'a public route must not redirect to sign-in').not.toBe(307);
+    expect(res.headers()['location'] ?? '').not.toContain('/auth/signin');
   });
 });
 
