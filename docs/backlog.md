@@ -106,16 +106,18 @@ graph should be able to speak first.
 
 ### 7. Cheap quality of life
 
+**Five of six shipped 2026-09-23** (`bdd0b62`). The sixth still needs a repro.
+
 Small, independent, good filler between the larger items.
 
-| Asana            | Item                                | Note                                                                                                                                                                                       |
-| ---------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1217468989312587 | Genre filters on Search and Library | `sem.title.genres` is already an array on the view.                                                                                                                                        |
-| 1218746925860053 | Dark mode toggle                    | Tokens already switch on `data-theme`; this is a `/me` control and a cookie, not a palette change.                                                                                         |
-| 1217468989312585 | Better back button                  |                                                                                                                                                                                            |
-| 1217468989312578 | Better mobile app icon              |                                                                                                                                                                                            |
-| 1217468989312581 | Share a card image, not a link      | The OG generator exists; this exposes it. Caveat: a sandboxed page cannot start its own download on iOS, so this has to be a share-sheet path, not an `<a download>`.                      |
-| 1217468989312580 | Top-of-screen blur bug              | **Needs a repro.** The status-bar/safe-area issue was fixed in Phase 6; this is either a regression or a different thing, and which one changes the fix. Screenshot plus route and device. |
+| Asana            | Item                                | Note                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1217468989312587 | Genre filters on Search and Library | **Library shipped.** Chips built from the reader's own rows, so no chip is ever a dead end. **Search is NOT done** and is deliberately left open — results there are name matches, where a genre filter is of marginal use; the browsing rails are the part worth filtering, and that is a separate decision.                                                                                                              |
+| 1218746925860053 | Dark mode toggle                    | **Shipped.** System / Light / Dark on `/me`, stored per device in a cookie and applied server-side, so the first paint is correct with no flash and it works before hydration. `themeColor` follows the choice, so the iOS status bar matches.                                                                                                                                                                             |
+| 1217468989312585 | Better back button                  | **Shipped.** Resolved server-side from `Referer`, so it names the destination ("← Library") and returns to the exact screen including its query string. Added to title and person, which had none; replaced the three hardcoded "← Universe" links.                                                                                                                                                                        |
+| 1217468989312578 | Better mobile app icon              | **Shipped, as a correctness fix rather than a redesign.** The manifest served one PNG as both `any` and `maskable`; the mark reached 0.406 of the canvas against a 0.4 safe radius and was clipped by circular launchers. Four files now, a generator that refuses an unsafe maskable, plus 16/32px favicons. **The mark itself is unchanged** — if the complaint was the design rather than the crop, that is still open. |
+| 1217468989312581 | Share a card image, not a link      | **Shipped, beside the link rather than replacing it** — a link unfurls richly AND stays tappable, so it stays the default. The PNG is prefetched with the share row so the second tap calls `navigator.share` synchronously; fetching at tap time is an await before `share()`, which kills the sheet on iOS.                                                                                                              |
+| 1217468989312580 | Top-of-screen blur bug              | **Needs a repro.** The status-bar/safe-area issue was fixed in Phase 6; this is either a regression or a different thing, and which one changes the fix. Screenshot plus route and device.                                                                                                                                                                                                                                 |
 
 ### 8. Larger, or not yet specified
 
@@ -142,12 +144,21 @@ walk is capped at one 45-second drain window a day by the Hobby plan, not by any
 work. Measured: 22.8 people/second against the client's 30/s token bucket.
 
 ```bash
-# against production — connection string from the NEON console, not Vercel
-DATABASE_URL='postgresql://…neon.tech/…' pnpm tsx scripts/hydrate-people.ts
+# Name the database explicitly. --url beats every environment variable,
+# including one left exported in the shell from an earlier command. Prefix the
+# line with a space to keep the connection string out of your history.
+ pnpm hydrate:people --url 'postgresql://…neon.tech/…'
 
-pnpm tsx scripts/hydrate-people.ts --limit 500      # try it small first
-pnpm tsx scripts/hydrate-people.ts --concurrency 4  # gentler on TMDB
+pnpm hydrate:people                      # whatever .env.local names
+pnpm hydrate:people --limit 500          # try it small first
+pnpm hydrate:people --concurrency 4      # gentler on TMDB
 ```
+
+**Check the first line says the database you meant.** A run launched with
+`DATABASE_URL` set inline to a Neon string once wrote 59,809 rows to localhost,
+because a `DATABASE_URL_UNPOOLED` left exported in that shell took precedence.
+The script now refuses to guess when the environment names two different
+databases — but `--url` is what makes the choice unambiguous.
 
 It writes **straight to whichever database `DATABASE_URL` names**, with no local staging and no
 export file, and that is the important part. Person ids are UUIDv7 generated at insert time in each
@@ -164,3 +175,6 @@ so interrupting it loses nothing.
 - A deliberate rollback drill, exercised once so it is known to work rather than assumed.
 - Rotate the Resend API key.
 - RLS on `usr.auth_session` — currently covered by a revoked grant, the same way `usr.invite` is.
+- **Genre filters on Search** — the other half of Asana 1217468989312587. Worth deciding what it
+  should filter before building it: search results are name matches, so the meaningful target is
+  the browsing rails on the idle screen, not the result list.
