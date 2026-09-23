@@ -129,14 +129,38 @@ Not done, and worth considering: this is a rail of nine with one reason each. A 
 with both reasons, a runtime filter ("I have 90 minutes") and a "not interested" signal is a real
 feature on top of this one.
 
-### 6. Shareable watcher persona card
+### 6. Shareable watcher persona card — SHIPPED 2026-09-23
 
 Asana 1217468989312589 · Ontology & Data Model
 
-A short narrative persona built from the same affinity view, rendered through the `ImageResponse`
-machinery already built for share cards. High delight per unit of work, and the most likely thing
-anyone actually posts. Do it after 5 — the persona is a sentence about the taste graph, so the taste
-graph should be able to speak first.
+Shipped on `/universe/me`, above the charts, because a card is a conclusion and belongs before its
+evidence.
+
+Every line is a fact with a query behind it — no model, no archetype quiz. The headline is the
+strongest thing the graph will say, and **coverage is what makes it worth saying**: "7 of 12" is a
+claim about you against the whole corpus, where "7 films" is a claim about a list.
+
+"Completist" has to be earned twice over: at least half the filmography AND a filmography of at
+least four. Half of three is technically true and the kind of thing that gets corrected in the
+replies. That second condition survived its first mutation test — the fixture director always had
+twelve films — so a three-film director whose work is 100% watched was added specifically to
+exercise it.
+
+**It also unblocks the reopened share-card item (1217468989312581).** The title card is keyed on a
+share slug, so the only way to see what you are about to send is to first commit a permanent public
+URL. The persona card is rendered for the CURRENT SESSION at `/api/persona/card` and handed to the
+share sheet as a file: the preview is the artifact, nothing is published unless the sheet is
+confirmed, and there is no row to revoke. That route is private — `no-store`, no account id from
+the caller — because a cached copy is somebody else's taste in a stranger's hands.
+
+Two faces are vendored for it (`src/assets/fonts/`). Satori cannot resolve a font by name, and
+given only one it uses that for everything — with the serif alone the counts came out serif too.
+Mono first, serif for the headline: editorial over technical is the app's register.
+
+**Finding, not yet fixed:** the app declares `Instrument Serif` in `--font-display` and never loads
+it, so every heading in the product is actually Georgia or ui-serif. Fixing that app-wide means a
+`font-src` in the CSP and a new cost against the LCP budget, which is a different change from making
+a card look right.
 
 ### 7. Cheap quality of life
 

@@ -8,6 +8,8 @@ import { resolveMetric, PHASE_1_METRICS } from '@/lib/metrics/resolve';
 import { nodeImageUrl } from '@/lib/tmdb-image';
 import { Donut, RankedList, Histogram, Sparkline, BucketBar, Stat } from '@/components/charts';
 import { Skeleton, HeadLine, TextLine } from '@/components/ui/skeleton';
+import { PersonaCard } from '@/components/tracking/persona-card';
+import { persona } from '@/server/repos/persona';
 
 export const metadata = { title: 'My universe' };
 export const dynamic = 'force-dynamic';
@@ -69,6 +71,13 @@ export default async function MyUniversePage() {
         </p>
       </header>
 
+      {/* The persona sits ABOVE the charts, because it is the one thing here
+          somebody would send to another person -- and because a card is a
+          conclusion, which belongs before the evidence rather than after it. */}
+      <Suspense fallback={<PersonaFallback />}>
+        <PersonaSection accountId={accountId} />
+      </Suspense>
+
       {RINGS.map((ring) => (
         <Suspense key={ring.predicate} fallback={<RingFallback label={ring.label} />}>
           <Ring accountId={accountId} predicate={ring.predicate} label={ring.label} />
@@ -81,6 +90,46 @@ export default async function MyUniversePage() {
         </Suspense>
       ))}
     </div>
+  );
+}
+
+/**
+ * The card, with its own sentence beside it.
+ *
+ * The sentence is not a caption for the image -- it is the accessible and
+ * copyable version of the same claim, since an image cannot be read by a
+ * screen reader, quoted, or searched. The card is what gets posted; the text
+ * is what the page actually says.
+ */
+async function PersonaSection({ accountId }: { accountId: string }) {
+  const p = await persona(accountId);
+  if (!p.ready) return null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2
+        className="text-xs uppercase tracking-widest"
+        style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+      >
+        Your card
+      </h2>
+      <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
+        <span style={{ color: 'var(--tl-text)' }}>{p.headline}</span>
+        {p.subhead ? ` — ${p.subhead}` : ''}. Nothing on it is generated; every number has a query
+        behind it.
+      </p>
+      <PersonaCard />
+    </section>
+  );
+}
+
+function PersonaFallback() {
+  return (
+    <section className="flex flex-col gap-3">
+      <HeadLine width="5rem" />
+      <TextLine width="80%" height="0.85rem" />
+      <Skeleton className="w-full" style={{ aspectRatio: '1 / 1', borderRadius: 12 }} />
+    </section>
   );
 }
 
