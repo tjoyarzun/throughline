@@ -14,33 +14,44 @@ import { AUTH_STATE, FIXTURES, type Fixtures } from './fixture-paths';
 const fixtures = (): Fixtures => JSON.parse(readFileSync(FIXTURES, 'utf8')) as Fixtures;
 
 /**
- * Type a query and wait for the search to answer.
+ * Type a query and wait for the search to actually fire.
  *
- * Two CI-only failures came out of this helper, both timing, neither a real
- * defect in the feature:
+ * Three CI-only failures came out of this helper, all timing, none a defect in
+ * the feature. Worth recording because each fix looked right:
  *
- * 1. Racing a fixed timeout. CI runs against `pnpm dev`, so the first request
- *    to /api/search compiles the route on demand and can take longer than any
- *    number worth hardcoding. Waiting on the response itself is correct at any
- *    speed.
+ * 1. Racing a fixed timeout. CI runs against `pnpm dev`, so the first hit to
+ *    /api/search compiles the route on demand, slower than any number worth
+ *    hardcoding.
  *
- * 2. Typing before React hydrated. `fill()` on a server-rendered input sets
- *    the DOM value, but with no handler attached yet nothing listens and no
- *    request is ever made -- so the wait above then timed out on a page that
- *    looked perfectly fine. The input carries autoFocus, which React applies
- *    on mount, so focus is a real hydration signal rather than a sleep.
+ * 2. Typing before React hydrated. fill() sets the DOM value, but with no
+ *    handler attached nothing listens and no request is made -- so waiting on
+ *    the response then timed out on a page that was working.
+ *
+ * 3. Using autoFocus as the hydration signal. It is not one: React renders it
+ *    as the `autofocus` ATTRIBUTE in the server HTML, and the browser applies
+ *    that during parse, before any JavaScript runs. The assertion passed while
+ *    nothing was listening, which is the most expensive kind of green.
+ *
+ * The App Router exposes no public "hydrated" signal, so rather than guess at
+ * another proxy this retries the one interaction that matters until the
+ * request fires. Slow machines take more attempts; correct ones still pass.
  */
 async function search(page: Page, query: string) {
   await page.goto('/search');
-
   const box = page.getByRole('searchbox');
-  await expect(box, 'autoFocus lands only after hydration').toBeFocused();
+  await box.waitFor({ state: 'visible' });
 
-  const answered = page.waitForResponse(
-    (r) => r.url().includes('/api/search') && r.request().method() === 'GET',
-  );
-  await box.fill(query);
-  await answered;
+  await expect(async () => {
+    const answered = page.waitForResponse(
+      (r) => r.url().includes('/api/search') && r.request().method() === 'GET',
+      { timeout: 3000 },
+    );
+    // Clear first: refilling the same value produces no change event, so a
+    // retry would type nothing and wait for a request that cannot come.
+    await box.fill('');
+    await box.fill(query);
+    await answered;
+  }).toPass({ timeout: 60_000 });
 }
 
 test.describe('search finds people', () => {
