@@ -26,10 +26,17 @@ import { bar } from './lib/progress';
  * Resumable by construction: it selects only rows where detail_synced_at IS
  * NULL, so an interrupted run loses nothing and re-running skips what landed.
  *
- *   pnpm tsx scripts/hydrate-people.ts              # DATABASE_URL from .env
- *   DATABASE_URL='<neon>' pnpm tsx scripts/hydrate-people.ts
+ * Run it through the package script, which loads .env.local for the TMDB
+ * token, and name the database explicitly:
+ *
+ *   pnpm hydrate:people                      # whatever .env.local names
+ *   pnpm hydrate:people --url '<neon url>'   # somewhere else, unambiguously
  *   ... --limit 500      stop after N people (a dry-ish run)
  *   ... --concurrency 4  gentler on the provider
+ *
+ * --url beats every environment variable, including one left exported in the
+ * shell from an earlier command. Prefix the whole line with a space to keep a
+ * connection string out of your history.
  */
 
 function arg(name: string, fallback: number): number {

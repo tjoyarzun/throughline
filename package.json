@@ -25,6 +25,7 @@
     "dev": "next dev",
     "e2e": "playwright test",
     "enrich:wikidata": "tsx scripts/enrich-wikidata.ts",
+    "hydrate:people": "tsx --env-file-if-exists=.env.local scripts/hydrate-people.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "invite": "tsx scripts/invite.ts",
