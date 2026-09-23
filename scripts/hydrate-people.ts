@@ -2,6 +2,8 @@ import postgres from 'postgres';
 import { Ingestor } from '../src/server/ingest/ingest';
 import { TmdbClient } from '../src/server/providers/tmdb/client';
 import { mapPool } from '../src/lib/pool';
+import { targetDatabase } from './lib/target-db';
+import { bar } from './lib/progress';
 
 /**
  * Backfill person detail in one pass.
@@ -44,28 +46,22 @@ const CAP = arg('limit', Number.POSITIVE_INFINITY);
    walk is also working does not re-fetch what the walk just finished. */
 const ROUND = 250;
 
-const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
-if (!url) throw new Error('hydrate-people: DATABASE_URL is not set');
+/* Refuses to guess when the environment names two different databases -- see
+   scripts/lib/target-db.ts for the run this cost. */
+const target = targetDatabase('hydrate-people');
 
-const sql = postgres(url, { max: 6, prepare: false, onnotice: () => {} });
-
-function bar(done: number, total: number): string {
-  const pct = total > 0 ? done / total : 1;
-  const filled = Math.round(pct * 24);
-  return `[${'#'.repeat(filled)}${'.'.repeat(24 - filled)}] ${(pct * 100).toFixed(1)}%`;
-}
+const sql = postgres(target.url, { max: 6, prepare: false, onnotice: () => {} });
 
 try {
-  const [target] = await sql<{ host: string; people: number; done: number }[]>`
+  const [counts] = await sql<{ host: string; people: number; done: number }[]>`
     SELECT current_setting('server_version') AS host,
            count(*)::int AS people,
            count(*) FILTER (WHERE detail_synced_at IS NOT NULL)::int AS done
     FROM core.person`;
 
-  const host = new URL(url).host;
-  console.log(`database : ${host}`);
-  console.log(`people   : ${target!.people} total, ${target!.done} already detailed`);
-  console.log(`remaining: ${target!.people - target!.done}`);
+  console.log(`database : ${target.label}   (from ${target.source})`);
+  console.log(`people   : ${counts!.people} total, ${counts!.done} already detailed`);
+  console.log(`remaining: ${counts!.people - counts!.done}`);
   console.log(`workers  : ${CONCURRENCY} (the client's 30/s token bucket still governs)\n`);
 
   const ing = new Ingestor(sql, new TmdbClient());
@@ -100,10 +96,10 @@ try {
     processed += rows.length;
     const elapsed = (Date.now() - started) / 1000;
     const rate = processed / elapsed;
-    const left = target!.people - target!.done - processed;
+    const left = Math.max(0, counts!.people - counts!.done - processed);
     const eta = rate > 0 ? left / rate : 0;
     process.stdout.write(
-      `\r${bar(target!.done + processed, target!.people)} ` +
+      `\r${bar(counts!.done + processed, counts!.people)} ` +
         `${processed} this run · ${rate.toFixed(1)}/s · ` +
         `${left} left · eta ${(eta / 60).toFixed(0)}m   `,
     );

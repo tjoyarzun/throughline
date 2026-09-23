@@ -13,10 +13,18 @@
  * Run: pnpm db:test-role   (idempotent)
  */
 import postgres from 'postgres';
+import { targetDatabase } from './lib/target-db';
 
-const admin = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
-if (!admin) {
-  console.error('db-test-role: DATABASE_URL must be set');
+/* Refuses to guess when the environment names two different databases. This
+   creates a login role; doing that to the wrong one is not a silent mistake
+   you want to discover later. */
+let admin: string;
+try {
+  const target = targetDatabase('db-test-role');
+  console.log(`database : ${target.label}   (from ${target.source})`);
+  admin = target.url;
+} catch (e) {
+  console.error(e instanceof Error ? e.message : e);
   process.exit(2);
 }
 

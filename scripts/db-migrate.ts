@@ -18,17 +18,28 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres from 'postgres';
-import { directDatabaseUrl, describeUrl, AUTH_ROLE } from '@/server/db/resolve-url';
+import { describeUrl, AUTH_ROLE } from '@/server/db/resolve-url';
+import { targetDatabase } from './lib/target-db';
 
-const resolved = directDatabaseUrl();
-if (!resolved) {
-  console.error(
-    'db-migrate: no database URL found. Set one of DATABASE_URL_UNPOOLED, ' +
-      'POSTGRES_URL_NON_POOLING, or DATABASE_URL.',
-  );
+/**
+ * Refuses to guess when the environment names two different databases.
+ *
+ * resolve-url ranks the candidates, which is right inside the app -- on Vercel
+ * every one of those names comes from the same project and points at the same
+ * database. It is wrong at a terminal, where the direct URL is often a
+ * leftover export and the one you typed is the one you meant. This applies
+ * migrations; picking the wrong target by ranking is not acceptable here.
+ */
+let url: string;
+let urlVarName: string;
+try {
+  const target = targetDatabase('db-migrate');
+  url = target.url;
+  urlVarName = target.source;
+} catch (e) {
+  console.error(e instanceof Error ? e.message : e);
   process.exit(2);
 }
-const { url, name: urlVarName } = resolved;
 
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 
