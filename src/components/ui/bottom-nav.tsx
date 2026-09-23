@@ -117,16 +117,43 @@ function Svg({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * A clock, not a house.
+ *
+ * The tab is called Now because it is not a homepage: it answers "what am I
+ * in the middle of, and what is next". A house says "start here", which is a
+ * weaker promise and also the one glyph every other app on the phone is
+ * already using.
+ *
+ * Two earlier attempts were better ideas than glyphs, and both were discarded
+ * after rendering them at actual size rather than reasoning about them:
+ *
+ *   A playhead on a timeline. Three overlapping parts inside 24 pixels came
+ *   out as a small gem with fins.
+ *
+ *   A progress ring. With a dimmed track behind it the two strokes merged and
+ *   it read as a record button; without one it read as a loading spinner,
+ *   which tells somebody the app is busy when it is not.
+ *
+ * A clock is plainer than either and survives the size. It also happens to be
+ * the literal word on the label, and a deliberately non-round time -- ten
+ * past ten is the watch-advertisement pose -- keeps both hands legible
+ * instead of overlapping at twelve.
+ */
 function now({ active }: { active: boolean }) {
   return (
     <Svg>
-      <path d="M3 10.5 12 3l9 7.5" />
-      <path
-        d="M5.5 9.5V20h13V9.5"
+      <circle
+        cx="12"
+        cy="12"
+        r="8.5"
         fill={active ? 'currentColor' : 'none'}
         opacity={active ? 0.16 : 1}
       />
-      <path d="M5.5 9.5V20h13V9.5" />
+      <circle cx="12" cy="12" r="8.5" />
+      {/* Hands. Filled when active, matching how every other tab here marks
+          its state, so it never rests on color alone (SC 1.4.1). */}
+      <path d="M12 7.2V12l3.4 2" />
     </Svg>
   );
 }
