@@ -7,6 +7,9 @@ import { Chip } from '@/components/ui/chip';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { DataSection } from '@/components/account/data-section';
 import { adminInvites, adminUsers, isAdmin } from '@/server/repos/admin';
+import { ThemeControl } from '@/components/account/theme-control';
+import { THEME_COOKIE, isTheme } from '@/lib/theme';
+import { cookies } from 'next/headers';
 
 export const metadata = { title: 'Me' };
 export const dynamic = 'force-dynamic';
@@ -17,6 +20,9 @@ export default async function MePage() {
 
   const { user } = session;
   const shares = await listMyShares(user.id);
+
+  const storedTheme = (await cookies()).get(THEME_COOKIE)?.value;
+  const theme = isTheme(storedTheme) ? storedTheme : 'system';
 
   // Two round trips only for an admin. Everyone else pays for one boolean.
   const admin = await isAdmin(user.id);
@@ -32,6 +38,20 @@ export default async function MePage() {
           {user.email}
         </p>
       </header>
+
+      <section className="flex flex-col gap-3">
+        <h2
+          className="text-xs uppercase tracking-widest"
+          style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+        >
+          Appearance
+        </h2>
+        <ThemeControl current={theme} />
+        <p className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
+          Stored on this device, not on your account — dark on a phone at night and light on a
+          laptop is a reasonable thing to want.
+        </p>
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2

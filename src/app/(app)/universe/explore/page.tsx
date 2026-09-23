@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BackLink } from '@/components/ui/back-link';
 import { graphEngine } from '@/lib/graph/postgres-engine';
 import { ConstellationCanvas } from '@/components/graph/constellation-canvas';
 import { NeighborGroups } from '@/components/graph/neighbor-groups';
@@ -50,9 +51,7 @@ export default async function ExplorePage({
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <Link href="/universe" className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
-          ← Universe
-        </Link>
+        <BackLink fallback="/universe" self="/universe/explore" />
         <h1 className="text-2xl leading-tight">{center.label}</h1>
         {center.sublabel && (
           <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
@@ -105,9 +104,7 @@ async function StartHere() {
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
-        <Link href="/universe" className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
-          ← Universe
-        </Link>
+        <BackLink fallback="/universe" self="/universe/explore" />
         <h1 className="text-3xl">Explore the graph</h1>
         <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
           Start anywhere and walk outward. Every step is a relationship the ontology declares.

@@ -101,6 +101,68 @@ setup('seed an account, a title and a share', async () => {
       ON CONFLICT (title_id, organization_id, region, offer_type)
       DO UPDATE SET valid_to = NULL, observed_at = now()`;
 
+    /**
+     * A library with more than one thing in it, across more than one genre.
+     *
+     * The fixture used to hold a single title with no genres, which meant the
+     * Library screen could not be tested at all -- the segment counts, the
+     * sort chips and the genre filter all render only when there is something
+     * to render, so a suite pointed at it would have passed by finding an
+     * empty page. Three genres over five titles is the smallest fixture where
+     * filtering can be observed to actually change the result.
+     */
+    const GENRES = ['Fixture Drama', 'Fixture Comedy', 'Fixture Horror'];
+    const concepts = await sql<{ id: string; label: string }[]>`
+      INSERT INTO core.concept (scheme, slug, label, is_curated)
+      SELECT 'genre', 'e2e-' || lower(replace(g, ' ', '-')), g, false
+      FROM unnest(${GENRES}::text[]) AS g
+      ON CONFLICT (scheme, slug) DO UPDATE SET label = excluded.label
+      RETURNING id, label`;
+    const genreId = new Map(concepts.map((c) => [c.label, c.id]));
+
+    /* Deliberately uneven: Drama on three, Comedy on two, Horror on one, so a
+       test can assert that filtering NARROWS rather than merely re-renders. */
+    const shelf: { slug: string; title: string; genres: string[] }[] = [
+      { slug: 'e2e-shelf-1', title: 'Fixture One', genres: ['Fixture Drama'] },
+      { slug: 'e2e-shelf-2', title: 'Fixture Two', genres: ['Fixture Drama', 'Fixture Comedy'] },
+      { slug: 'e2e-shelf-3', title: 'Fixture Three', genres: ['Fixture Drama'] },
+      { slug: 'e2e-shelf-4', title: 'Fixture Four', genres: ['Fixture Comedy'] },
+      { slug: 'e2e-shelf-5', title: 'Fixture Five', genres: ['Fixture Horror'] },
+    ];
+    for (const item of shelf) {
+      const [row] = await sql<{ id: string }[]>`
+        INSERT INTO core.title (slug, kind, title, sort_title, release_date, runtime_minutes,
+                                overview, original_language)
+        VALUES (${item.slug}, 'movie', ${item.title}, ${item.title.toLowerCase()},
+                '2021-01-01', 90, 'A shelf fixture.', 'en')
+        ON CONFLICT (slug) DO UPDATE SET title = excluded.title
+        RETURNING id`;
+      for (const g of item.genres) {
+        await sql`
+          INSERT INTO core.edge (subject_type, subject_id, predicate, object_type, object_id,
+                                 provenance, source)
+          VALUES ('title', ${row!.id}, 'belongs_to_genre', 'concept', ${genreId.get(g)!},
+                  'asserted', 'e2e')
+          ON CONFLICT DO NOTHING`;
+      }
+      await sql`
+        INSERT INTO usr.title_state (account_id, title_id, status)
+        VALUES (${accountId}, ${row!.id}, 'watchlist')
+        ON CONFLICT (account_id, title_id) DO UPDATE SET status = excluded.status`;
+    }
+
+    /**
+     * Clear the fixture account's rate-limit budget.
+     *
+     * Share creation is capped at twenty an hour, and the share specs create
+     * one per run. The suite therefore poisoned itself: after enough runs the
+     * button rendered "Try again" forever and three tests failed for a reason
+     * that had nothing to do with what they were testing. The cap is correct
+     * and stays; the fixture just starts each run with a clean budget, the
+     * same way it starts with a clean session.
+     */
+    await sql`DELETE FROM core.rate_limit WHERE bucket LIKE ${'share:' + accountId + '%'}`;
+
     const shareSlug = 'e2eFixtureShareSlug1';
     await sql`
       INSERT INTO usr.share (slug, account_id, title_id, include_rating, rating_snapshot, message)

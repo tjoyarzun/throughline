@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BackLink } from '@/components/ui/back-link';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAccountId } from '@/server/auth/session';
@@ -84,11 +85,7 @@ export default async function MyUniversePage() {
 }
 
 function Back() {
-  return (
-    <Link href="/universe" className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
-      ← Universe
-    </Link>
-  );
+  return <BackLink fallback="/universe" self="/universe/me" />;
 }
 
 /**

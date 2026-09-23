@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import '@/styles/globals.css';
+import { THEME_COOKIE, isTheme, themeAttribute } from '@/lib/theme';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker';
 import { OfflineBanner } from '@/components/pwa/offline-banner';
 
@@ -32,8 +34,17 @@ export const metadata: Metadata = {
    * here and non-zero in a browser tab, and being right in both is cheap.
    */
   appleWebApp: { capable: true, title: 'Throughline', statusBarStyle: 'default' },
+  /**
+   * The small sizes are a SIMPLIFIED mark, not a downscale.
+   *
+   * At 16 and 32 pixels the three nodes on the arc merge into a smudge, so
+   * those two drop the middle node and thicken the stroke. Listing them means
+   * the browser picks one rather than resampling the 192 into mush.
+   */
   icons: {
     icon: [
+      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
@@ -41,25 +52,49 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
-  interactiveWidget: 'resizes-content',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FBFAF8' },
-    { media: '(prefers-color-scheme: dark)', color: '#0B0C0E' },
-  ],
-};
+/**
+ * themeColor has to follow the stored choice, not only the device.
+ *
+ * It paints the iOS status bar and the Android toolbar, and the media-query
+ * form answers to prefers-color-scheme alone. Choose Light on a phone set to
+ * dark and the page turns warm paper while the bar above it stays near-black
+ * -- the one seam where an explicit choice visibly fails to take. When a
+ * choice exists it is stated flatly; 'system' keeps the media pair.
+ */
+const BG = { light: '#FBFAF8', dark: '#0B0C0E' } as const;
+
+export async function generateViewport(): Promise<Viewport> {
+  const stored = (await cookies()).get(THEME_COOKIE)?.value;
+  const chosen = themeAttribute(isTheme(stored) ? stored : 'system');
+
+  return {
+    width: 'device-width',
+    initialScale: 1,
+    viewportFit: 'cover',
+    interactiveWidget: 'resizes-content',
+    themeColor: chosen
+      ? BG[chosen]
+      : [
+          { media: '(prefers-color-scheme: light)', color: BG.light },
+          { media: '(prefers-color-scheme: dark)', color: BG.dark },
+        ],
+  };
+}
 
 /**
  * Root layout holds only the document and the skip link. The app shell lives in
  * the (app) route group and auth pages in (auth), so neither inherits chrome
  * meant for the other.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /* The stored choice, applied to the first paint rather than patched in
+     afterwards. Every route here is force-dynamic already, so reading a cookie
+     in the root layout costs no cacheability. */
+  const stored = (await cookies()).get(THEME_COOKIE)?.value;
+  const theme = themeAttribute(isTheme(stored) ? stored : 'system');
+
   return (
-    <html lang="en-US">
+    <html lang="en-US" {...(theme ? { 'data-theme': theme } : {})}>
       <body>
         <a
           href="#main"

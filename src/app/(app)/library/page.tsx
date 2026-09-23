@@ -1,7 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAccountId } from '@/server/auth/session';
-import { libraryCounts, listLibrary, accountRegion, type LibrarySort } from '@/server/repos/user';
+import {
+  libraryCounts,
+  libraryGenres,
+  listLibrary,
+  accountRegion,
+  type LibrarySort,
+} from '@/server/repos/user';
 import type { Status } from '@/lib/tracking';
 import { posterUrl } from '@/lib/tmdb-image';
 import { StarRating } from '@/components/tracking/star-rating';
@@ -39,7 +45,7 @@ const EMPTY: Record<string, { head: string; body: string }> = {
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ list?: string; sort?: string }>;
+  searchParams: Promise<{ list?: string; sort?: string; genre?: string }>;
 }) {
   const accountId = await getAccountId();
   if (!accountId) redirect('/auth/signin?next=/library');
@@ -49,14 +55,40 @@ export default async function LibraryPage({
   const sort = (SORTS.find((s) => s.key === sp.sort)?.key ?? 'added') as LibrarySort;
   const favoritesOnly = segment === 'favorites';
 
-  const [counts, items] = await Promise.all([
+  const scope = favoritesOnly ? { favoritesOnly: true as const } : { status: segment as Status };
+
+  const [counts, genres, region] = await Promise.all([
     libraryCounts(accountId),
-    listLibrary(accountId, {
-      ...(favoritesOnly ? { favoritesOnly: true } : { status: segment as Status }),
-      sort,
-      region: await accountRegion(accountId),
-    }),
+    libraryGenres(accountId, scope),
+    accountRegion(accountId),
   ]);
+
+  /* An unknown genre in the URL is not an error page: the chip list is built
+     from the reader's own rows, so one can stop existing simply by their
+     un-tracking the last title that had it. Treat it as no filter and let the
+     chips show the truth.
+     
+     Validated BEFORE the list query rather than alongside it. Filtering by a
+     genre the chips do not offer would render an empty grid under an "All
+     genres" chip that claims nothing is filtered -- the list and the control
+     describing it have to agree. */
+  const genre = genres.some((g) => g.genre === sp.genre) ? sp.genre : undefined;
+
+  const items = await listLibrary(accountId, {
+    ...scope,
+    sort,
+    ...(genre ? { genre } : {}),
+    region,
+  });
+
+  const href = (next: { sort?: LibrarySort; genre?: string | null }) => {
+    const p = new URLSearchParams({ list: segment });
+    const s2 = next.sort ?? sort;
+    if (s2 !== 'added') p.set('sort', s2);
+    const g = next.genre === null ? undefined : (next.genre ?? genre);
+    if (g) p.set('genre', g);
+    return `/library?${p.toString()}`;
+  };
 
   const empty = EMPTY[segment]!;
 
@@ -71,6 +103,9 @@ export default async function LibraryPage({
           return (
             <Link
               key={s.key}
+              /* Genre is deliberately dropped when changing segment: the
+                 chips are per-segment, so carrying "Anime" from Watched into
+                 Watchlist would silently filter to nothing. */
               href={`/library?list=${s.key}${sort === 'added' ? '' : `&sort=${sort}`}`}
               aria-current={active ? 'page' : undefined}
               className="min-h-11 shrink-0 rounded-full px-4 py-2 text-sm"
@@ -97,7 +132,7 @@ export default async function LibraryPage({
           {SORTS.map((s) => (
             <Link
               key={s.key}
-              href={`/library?list=${segment}&sort=${s.key}`}
+              href={href({ sort: s.key })}
               className="shrink-0 rounded-full px-3 py-1.5 text-xs"
               style={{
                 border: `1px solid ${s.key === sort ? 'var(--tl-accent)' : 'var(--tl-border)'}`,
@@ -108,6 +143,21 @@ export default async function LibraryPage({
             </Link>
           ))}
         </div>
+      )}
+
+      {genres.length > 1 && (
+        <nav aria-label="Filter by genre" className="flex gap-1 overflow-x-auto pb-1">
+          <GenreChip href={href({ genre: null })} label="All genres" active={!genre} />
+          {genres.map((g) => (
+            <GenreChip
+              key={g.genre}
+              href={href({ genre: g.genre === genre ? null : g.genre })}
+              label={g.genre}
+              count={g.n}
+              active={g.genre === genre}
+            />
+          ))}
+        </nav>
       )}
 
       {items.length === 0 ? (
@@ -201,5 +251,47 @@ export default async function LibraryPage({
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * One genre chip.
+ *
+ * aria-current, NOT aria-pressed. The first attempt reasoned about these as
+ * toggles -- tapping the active one does clear the filter -- and reached for
+ * aria-pressed, which is only defined on role=button. These are links: they
+ * navigate, they have an href, and axe rejected the attribute outright
+ * (aria-allowed-attr, critical). aria-current="true" is the right thing for a
+ * link marking the active member of a set, which is exactly what this is.
+ */
+function GenreChip({
+  href,
+  label,
+  count,
+  active,
+}: {
+  href: string;
+  label: string;
+  count?: number;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'true' : undefined}
+      className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs"
+      style={{
+        border: `1px solid ${active ? 'var(--tl-accent)' : 'var(--tl-border)'}`,
+        background: active ? 'var(--tl-surface-2)' : 'transparent',
+        color: active ? 'var(--tl-text)' : 'var(--tl-text-dim)',
+      }}
+    >
+      {label}
+      {count !== undefined && (
+        <span className="tabular-nums" style={{ fontFamily: 'var(--font-mono)' }}>
+          {count}
+        </span>
+      )}
+    </Link>
   );
 }

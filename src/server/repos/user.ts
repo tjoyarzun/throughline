@@ -307,6 +307,8 @@ export async function listLibrary(
     sort?: LibrarySort;
     limit?: number;
     region?: string;
+    /** One genre label, exactly as it appears in sem.title.genres. */
+    genre?: string;
   } = {},
 ): Promise<LibraryItem[]> {
   const sort = opts.sort ?? 'added';
@@ -343,6 +345,7 @@ export async function listLibrary(
         WHERE ut.account_id = ${accountId}
           ${opts.status ? sql`AND ut.status = ${opts.status}` : sql``}
           ${opts.favoritesOnly ? sql`AND ut.is_favorite` : sql``}
+          ${opts.genre ? sql`AND ${opts.genre} = ANY(t.genres)` : sql``}
         ORDER BY ${order}
         LIMIT ${limit}`,
     );
@@ -393,6 +396,38 @@ export async function recentlyWatched(accountId: string, limit = 12): Promise<Li
 }
 
 /** Counts for the segmented control, in one round trip rather than five. */
+/**
+ * The genres actually present in one segment of a library, with counts.
+ *
+ * Derived from the reader's own rows rather than from the nineteen TMDB
+ * genres, so every chip offered returns something. A filter that can produce
+ * an empty result is a filter you have to test by clicking, and a list of
+ * nineteen options over a library of forty titles is mostly dead ends.
+ *
+ * Counted under the same row-level policy as the list it filters, so the
+ * numbers on the chips and the rows behind them cannot disagree.
+ */
+export async function libraryGenres(
+  accountId: string,
+  opts: { status?: Status; favoritesOnly?: boolean } = {},
+): Promise<{ genre: string; n: number }[]> {
+  return withUser(accountId, async (tx) =>
+    rows<{ genre: string; n: number }>(
+      tx,
+      sql`
+        SELECT g AS genre, count(*)::int AS n
+        FROM sem.user_title ut
+        JOIN sem.title t ON t.id = ut.title_id
+        CROSS JOIN LATERAL unnest(t.genres) AS g
+        WHERE ut.account_id = ${accountId}
+          ${opts.status ? sql`AND ut.status = ${opts.status}` : sql``}
+          ${opts.favoritesOnly ? sql`AND ut.is_favorite` : sql``}
+        GROUP BY g
+        ORDER BY n DESC, g`,
+    ),
+  );
+}
+
 export async function libraryCounts(accountId: string): Promise<Record<string, number>> {
   return withUser(accountId, async (tx) => {
     const r = await rows<{

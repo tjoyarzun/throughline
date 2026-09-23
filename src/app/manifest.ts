@@ -27,12 +27,21 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0B0C0E',
     categories: ['entertainment', 'utilities'],
     icons: [
-      // "any" and "maskable" are listed separately on purpose: a launcher that
-      // crops a non-maskable icon to a circle clips the mark.
+      /**
+       * Separate FILES, not just separate entries.
+       *
+       * These four used to be two PNGs listed twice, which made the
+       * declaration a lie and the result wrong in both directions: launchers
+       * that crop to a circle shaved the mark (measured -- it reached 0.406 of
+       * the canvas from center against a 0.4 safe radius), while platforms
+       * that do not crop drew it floating inside padding it did not need.
+       * The maskable pair now carries the safe-zone inset; the "any" pair
+       * fills its tile.
+       */
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
 }

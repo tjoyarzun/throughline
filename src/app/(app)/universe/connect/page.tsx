@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { BackLink } from '@/components/ui/back-link';
 import { graphEngine } from '@/lib/graph/postgres-engine';
 import { PathChain } from '@/components/graph/path-chain';
 import { ConnectForm } from '@/components/graph/connect-form';
@@ -49,9 +49,7 @@ export default async function ConnectPage({
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <Link href="/universe" className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
-          ← Universe
-        </Link>
+        <BackLink fallback="/universe" self="/universe/connect" />
         <h1 className="text-3xl">Find the throughline</h1>
         <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
           Pick two things. The graph explains how they connect.

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { BackLink } from '@/components/ui/back-link';
 import { Suspense } from 'react';
 import { getTitleBySlug, getTitleByTmdbId } from '@/server/repos/titles';
 import { hydrateOnDemand } from '@/server/ingest/on-demand';
@@ -64,6 +65,9 @@ export default async function TitlePage({ params }: { params: Promise<{ slug: st
 
   return (
     <article className="-mx-4 flex flex-col gap-8">
+      <div className="px-4">
+        <BackLink fallback="/search" self={`/title/${t.slug}`} />
+      </div>
       {/* Backdrop, fading into the page. The gradient is tinted by the poster's
           own dominant color, extracted once at ingest. */}
       <header className="relative">

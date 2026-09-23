@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { BackLink } from '@/components/ui/back-link';
 import { getPersonBySlug, getFilmography } from '@/server/repos/titles';
 import { hydratePersonOnDemand } from '@/server/ingest/on-demand';
 import { posterUrl, profileUrl } from '@/lib/tmdb-image';
@@ -44,6 +45,7 @@ export default async function PersonPage({ params }: { params: Promise<{ slug: s
 
   return (
     <div className="flex flex-col gap-8">
+      <BackLink fallback="/search" self={`/person/${person.slug}`} />
       <header className="flex items-start gap-4">
         <span
           className="block h-24 w-24 shrink-0 overflow-hidden rounded-full"
