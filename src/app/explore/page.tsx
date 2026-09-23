@@ -42,8 +42,18 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+/**
+ * The version suffix on the featured key is load-bearing.
+ *
+ * unstable_cache keys on the array it is given, not on the function body, and
+ * Vercel's data cache survives a deployment. Changing which node opens the
+ * page without changing the key means the old opener keeps being served for
+ * up to an hour after the deploy that replaced it -- a silent staleness that
+ * looks exactly like the change not having shipped. Bump the suffix whenever
+ * the selection rule changes.
+ */
 const cachedStats = unstable_cache(ontologyStats, ['explore-stats'], { revalidate: 3600 });
-const cachedFeatured = unstable_cache(() => featuredNodes(8), ['explore-featured'], {
+const cachedFeatured = unstable_cache(() => featuredNodes(8), ['explore-featured-curated'], {
   revalidate: 3600,
 });
 const cachedNeighborhood = unstable_cache(

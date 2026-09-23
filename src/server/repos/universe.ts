@@ -136,23 +136,123 @@ export interface FeaturedNode {
 }
 
 /**
- * Well-connected entry points, chosen from the data.
+ * The front door, chosen deliberately.
  *
- * Not a hardcoded list of slugs: the corpus grows, and a curated list would
- * quietly start pointing at whatever it pointed at in 2026. The first result
- * carries the landing page's opening view, so it has to be a node whose
- * neighborhood is worth looking at -- hence ordering by degree.
+ * This used to be `ORDER BY degree DESC` alone, and degree turns out to be a
+ * poor proxy for "worth looking at". What it actually ranks first is anthology
+ * films whose 300 cameo credits are all one-offs, long-running procedurals,
+ * and studios -- production credits on a thousand films make Universal the
+ * best-connected node in the corpus and the dullest possible thing to open on.
+ * In production it picked a long-running anime; locally, a 1984 road movie. Neither
+ * is a front door, and both were accidents of arithmetic.
  *
- * Capped ABOVE as well as below. A node with thousands of connections lays out
- * as one indistinguishable blob, which is the same reason the path finder bars
- * hubs from intermediate positions.
+ * So a small ordered list of openers, resolved by slug, with the degree query
+ * behind it as filler. Each entry is here for a measured reason, not a taste
+ * one: Nolan's neighborhood has 79 nodes, 274 edges among them and ZERO
+ * isolated nodes, across four entity types -- a director's second hop is his
+ * repertory company, so it draws as a network rather than a wheel. A title's
+ * second hop is its cast's other films, which is looser and leaves floaters.
+ *
+ * 2001 is second rather than first for the same measured reason, in the other
+ * direction: 44 nodes, 14 of them isolated. A 1968 cast has little second-hop
+ * overlap in this corpus, so it draws thin and dusty. It is a fine place to
+ * GO and a weak place to LAND.
+ *
+ * Slugs carry the TMDB id (`christopher-nolan-525`), so they are stable across
+ * databases. A slug that does not resolve is SKIPPED, not left as a hole, and
+ * if every one of them misses, the page still opens on the best node the data
+ * offers. Curation that fails closed would be worse than no curation.
+ */
+const OPENERS: { type: string; slug: string }[] = [
+  { type: 'person', slug: 'christopher-nolan-525' },
+  { type: 'title', slug: '2001-a-space-odyssey-1968' },
+  { type: 'title', slug: 'the-godfather-1972' },
+  { type: 'person', slug: 'denis-villeneuve-137427' },
+  { type: 'title', slug: 'blade-runner-2049-2017' },
+  { type: 'title', slug: 'star-wars-1977' },
+  { type: 'title', slug: 'the-matrix-1999' },
+  { type: 'title', slug: 'the-odyssey-2026' },
+  { type: 'title', slug: 'jaws-1975' },
+];
+
+/**
+ * Merge curated openers with data-ranked filler.
+ *
+ * Pure, and separated from the queries so the ordering rules are testable
+ * without a database -- they are the part that can quietly go wrong.
+ */
+export function mergeFeatured(
+  curated: FeaturedNode[],
+  filler: FeaturedNode[],
+  limit: number,
+): FeaturedNode[] {
+  const out: FeaturedNode[] = [];
+  const seen = new Set<string>();
+  for (const n of [...curated, ...filler]) {
+    const key = `${n.type}:${n.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Entry points for the public landing: the curated openers, then filler.
+ *
+ * The filler is still degree-ranked but now excludes organizations, and is
+ * capped ABOVE as well as below -- a node with thousands of connections lays
+ * out as one indistinguishable blob, which is the same reason the path finder
+ * bars hubs from intermediate positions.
  */
 export async function featuredNodes(limit = 8): Promise<FeaturedNode[]> {
-  return db()<FeaturedNode[]>`
-    SELECT n.node_type AS type, n.id, n.slug, n.label, d.degree
+  const d = db();
+  const [curatedRows, filler] = await Promise.all([
+    /* unnest WITH ORDINALITY, so the curated order survives the round trip and
+       the type/slug pair is matched as a PAIR. Two separate ANY() clauses
+       would be a cross product, and `(type, slug) IN (...)` is a syntax error
+       through this driver -- postgres.js has no tuple-list form. */
+    d<FeaturedNode[]>`
+      SELECT n.node_type AS type, n.id, n.slug, n.label, coalesce(dg.degree, 0) AS degree
+      FROM unnest(${OPENERS.map((o) => o.type)}::text[], ${OPENERS.map((o) => o.slug)}::text[])
+             WITH ORDINALITY AS o(node_type, slug, ord)
+      JOIN sem.node n ON n.node_type = o.node_type AND n.slug = o.slug
+      LEFT JOIN core.node_degree dg ON dg.node_type = n.node_type AND dg.node_id = n.id
+      ORDER BY o.ord`,
+    d<FeaturedNode[]>`
+      SELECT n.node_type AS type, n.id, n.slug, n.label, dg.degree
+      FROM sem.node n
+      JOIN core.node_degree dg ON dg.node_type = n.node_type AND dg.node_id = n.id
+      WHERE n.image_path IS NOT NULL
+        AND n.node_type <> 'organization'
+        AND dg.degree BETWEEN 40 AND 400
+      ORDER BY dg.degree DESC
+      LIMIT ${limit}`,
+  ]);
+
+  return mergeFeatured(curatedRows, filler, limit);
+}
+
+/**
+ * The best-connected of a set of titles.
+ *
+ * Used to center the signed-in Universe on something from the reader's own
+ * library, so the default view is THEIR corner of the graph rather than a
+ * stranger's. Takes ids the caller already fetched under the row-level policy
+ * rather than reaching into usr itself -- the personal half stays behind
+ * withUser, and only the degree lookup, which is global, happens here.
+ */
+export async function bestConnectedAmong(
+  titleIds: string[],
+): Promise<{ type: string; id: string } | null> {
+  if (titleIds.length === 0) return null;
+  const [row] = await db()<{ type: string; id: string }[]>`
+    SELECT n.node_type AS type, n.id
     FROM sem.node n
-    JOIN core.node_degree d ON d.node_type = n.node_type AND d.node_id = n.id
-    WHERE n.image_path IS NOT NULL AND d.degree BETWEEN 40 AND 400
-    ORDER BY d.degree DESC
-    LIMIT ${limit}`;
+    JOIN core.node_degree dg ON dg.node_type = n.node_type AND dg.node_id = n.id
+    WHERE n.node_type = 'title' AND n.id = ANY(${titleIds})
+    ORDER BY dg.degree DESC
+    LIMIT 1`;
+  return row ?? null;
 }

@@ -152,7 +152,73 @@ function simulate(placed: Placed[], edges: GraphEdge[], w: number, h: number): v
     temp = Math.max(0.5, temp - cool);
   }
 
+  /* Fit, then unpack the knots, then re-fit because unpacking pushes outward.
+     Three rounds: each fit shrinks by less than the last as overlap clears,
+     and it is settled well before the third. */
   fitToFrame(placed, w, h);
+  for (let round = 0; round < 3; round++) {
+    separate(placed);
+    fitToFrame(placed, w, h);
+  }
+}
+
+/**
+ * Push overlapping nodes apart, in screen space.
+ *
+ * Fruchterman-Reingold has no notion of how big a node is drawn: it settles
+ * point masses, and fitToFrame then maps them to pixels. A densely connected
+ * cluster -- a director's own filmography, where every film shares cast with
+ * every other -- therefore settles into a knot whose members are closer
+ * together than their own radii, and renders as one solid blob rather than
+ * twelve films.
+ *
+ * So a short relaxation pass AFTER fitting, when radii and positions are
+ * finally in the same units. It only ever pushes outward and only when two
+ * disks actually overlap, so it cannot rearrange the layout -- the topology
+ * the simulation found survives; the picture just stops lying about how many
+ * things are in it.
+ */
+function separate(placed: Placed[]): void {
+  const gap = 2.5;
+  for (let step = 0; step < 80; step++) {
+    let moved = false;
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const a = placed[i]!;
+        const b = placed[j]!;
+        const want = a.r + b.r + gap;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        if (d >= want) continue;
+        if (d < 0.01) {
+          // Deterministic, like the seeding: a random nudge here would make
+          // the same neighborhood settle differently on every render.
+          dx = (i % 5) - 2 || 1;
+          dy = (j % 5) - 2 || 1;
+          d = Math.hypot(dx, dy);
+        }
+        const push = (want - d) / 2;
+        const ux = (dx / d) * push;
+        const uy = (dy / d) * push;
+        // The center stays pinned; it absorbs nothing and gives nothing.
+        if (a.fixed) {
+          b.x += ux * 2;
+          b.y += uy * 2;
+        } else if (b.fixed) {
+          a.x -= ux * 2;
+          a.y -= uy * 2;
+        } else {
+          a.x -= ux;
+          a.y -= uy;
+          b.x += ux;
+          b.y += uy;
+        }
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
 }
 
 /**
@@ -474,7 +540,20 @@ export function ConstellationCanvas({
         ref={wrapRef}
         className="relative w-full overflow-hidden rounded-xl border"
         style={{
-          height: 'min(78vh, 620px)',
+          /**
+           * Square, capped -- not a fixed viewport height.
+           *
+           * The layout settles roughly circular and fitToFrame scales both
+           * axes by the same factor, because scaling them independently would
+           * stretch the picture and make distance lie about how related two
+           * things are. A tall box on a narrow phone therefore fits by WIDTH
+           * and leaves the rest empty: 358x620 on a 390pt screen put the whole
+           * graph in the middle third with a band of nothing above and below.
+           * An aspect ratio spends the pixels the picture can actually use.
+           * The cap keeps the desktop box exactly where it was.
+           */
+          aspectRatio: '1 / 1',
+          maxHeight: 'min(78vh, 620px)',
           borderColor: 'var(--tl-border)',
           background: 'var(--tl-surface)',
         }}

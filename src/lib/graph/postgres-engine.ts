@@ -89,7 +89,22 @@ export class PostgresGraphEngine implements GraphEngine {
     const rows = await db()<
       (NodeRow & { predicate: string; predicate_label: string; total: number; rn: number })[]
     >`
-      WITH nbr AS (
+      /* DISTINCT ON first, and it is not a tidiness measure.
+         sem.edge unions core.credit, where one person can hold several rows
+         under the same predicate -- a TV writer credited on four episodes, a
+         screenwriter listed as both Writer and Screenplay. Without this, that
+         person occupied four of the twelve slots in their group, rendered with
+         a duplicate React key, and inflated the "N more" count by the same
+         amount. Measured on the seeded corpus: 4 rows for one writer. */
+      WITH uniq AS (
+        SELECT DISTINCT ON (e.predicate, e.object_type, e.object_id)
+               e.predicate, e.predicate_label, e.path_weight,
+               e.object_type, e.object_id
+        FROM sem.edge_bidirectional e
+        WHERE e.subject_type = ${ref.type} AND e.subject_id = ${ref.id}
+        ORDER BY e.predicate, e.object_type, e.object_id, e.path_weight ASC
+      ),
+      nbr AS (
         SELECT e.predicate, e.predicate_label, e.path_weight,
                n.node_type, n.id, n.slug, n.label, n.sublabel, n.image_path,
                d.degree,
@@ -98,10 +113,9 @@ export class PostgresGraphEngine implements GraphEngine {
                  ORDER BY e.path_weight ASC, n.popularity DESC NULLS LAST, n.label
                ) AS rn,
                count(*) OVER (PARTITION BY e.predicate)::int AS total
-        FROM sem.edge_bidirectional e
+        FROM uniq e
         JOIN sem.node n ON n.node_type = e.object_type AND n.id = e.object_id
         LEFT JOIN core.node_degree d ON d.node_type = n.node_type AND d.node_id = n.id
-        WHERE e.subject_type = ${ref.type} AND e.subject_id = ${ref.id}
       )
       SELECT * FROM nbr WHERE rn <= ${perGroup}
       ORDER BY path_weight ASC, predicate, rn`;
@@ -146,11 +160,19 @@ export class PostgresGraphEngine implements GraphEngine {
     const hubDegree = opts.hubDegree ?? 400;
 
     const rows = await db()<(NodeRow & { hop: number })[]>`
+      /* Deduped before the LIMIT, for the same reason as neighbors(): a person
+         holding four credit rows on one show would otherwise consume four of
+         the 24 first-hop slots and draw as one node, quietly shrinking the
+         ring to 21 distinct things. */
       WITH l1 AS (
-        SELECT e.object_type AS node_type, e.object_id AS id, e.path_weight
-        FROM sem.edge_bidirectional e
-        WHERE e.subject_type = ${ref.type} AND e.subject_id = ${ref.id}
-        ORDER BY e.path_weight ASC LIMIT ${first}
+        SELECT node_type, id, path_weight FROM (
+          SELECT DISTINCT ON (e.object_type, e.object_id)
+                 e.object_type AS node_type, e.object_id AS id, e.path_weight
+          FROM sem.edge_bidirectional e
+          WHERE e.subject_type = ${ref.type} AND e.subject_id = ${ref.id}
+          ORDER BY e.object_type, e.object_id, e.path_weight ASC
+        ) d
+        ORDER BY path_weight ASC LIMIT ${first}
       ),
       l2 AS (
         SELECT DISTINCT ON (e.object_type, e.object_id)
