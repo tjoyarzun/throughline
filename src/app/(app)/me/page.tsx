@@ -7,6 +7,8 @@ import { Chip } from '@/components/ui/chip';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { DataSection } from '@/components/account/data-section';
 import { adminInvites, adminUsers, isAdmin } from '@/server/repos/admin';
+import Link from 'next/link';
+import { RELEASES } from '@/content/releases';
 import { ThemeControl } from '@/components/account/theme-control';
 import { THEME_COOKIE, isTheme } from '@/lib/theme';
 import { cookies } from 'next/headers';
@@ -20,6 +22,14 @@ export default async function MePage() {
 
   const { user } = session;
   const shares = await listMyShares(user.id);
+
+  const latest = RELEASES[0];
+  const LATEST_RELEASE = latest
+    ? `${latest.name} · ${new Date(`${latest.date}T12:00:00Z`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      })}`
+    : '';
 
   const storedTheme = (await cookies()).get(THEME_COOKIE)?.value;
   const theme = isTheme(storedTheme) ? storedTheme : 'system';
@@ -38,6 +48,24 @@ export default async function MePage() {
           {user.email}
         </p>
       </header>
+
+      <section className="flex flex-col gap-3">
+        <Link
+          href="/whats-new"
+          className="flex min-h-11 items-center justify-between gap-3 rounded-xl border px-4 py-3"
+          style={{ borderColor: 'var(--tl-border)', background: 'var(--tl-surface)' }}
+        >
+          <span className="flex flex-col">
+            <span className="text-sm">What&rsquo;s new</span>
+            <span className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
+              {LATEST_RELEASE}
+            </span>
+          </span>
+          <span aria-hidden="true" style={{ color: 'var(--tl-text-dim)' }}>
+            →
+          </span>
+        </Link>
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2

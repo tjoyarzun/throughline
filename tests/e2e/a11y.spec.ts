@@ -101,7 +101,15 @@ test.describe('accessibility — signed in', () => {
     );
   });
 
-  for (const path of ['/', '/search', '/library', '/me', '/universe', '/universe/connect']) {
+  for (const path of [
+    '/',
+    '/search',
+    '/library',
+    '/me',
+    '/universe',
+    '/universe/connect',
+    '/whats-new',
+  ]) {
     test(`${path} has no axe violations`, async ({ page }) => {
       const violations = await audit(page, path);
       expect(violations, `\n  ${report(violations)}\n`).toEqual([]);
