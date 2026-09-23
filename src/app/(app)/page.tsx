@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { SuggestionRail } from '@/components/media/suggestion-rail';
 import { getAccountId } from '@/server/auth/session';
 import {
   continueWatching,
@@ -112,6 +114,15 @@ export default async function HomePage() {
           <PosterGrid items={upNext} />
         </section>
       )}
+
+      {/* Streamed, never awaited with the rest: this walks the taste graph and
+          is the slowest query on the page, and Continue Watching is what
+          people came for. No fallback skeleton on purpose -- the section is
+          absent for a new account, so a placeholder would promise something
+          that may never arrive. */}
+      <Suspense fallback={null}>
+        <SuggestionRail accountId={accountId} />
+      </Suspense>
 
       {recent.length > 0 && (
         <section className="flex flex-col gap-3">

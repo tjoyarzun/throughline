@@ -99,15 +99,35 @@ What did NOT ship is touch: on a phone the first contact with a node is a naviga
 no pan or zoom. That is **item 8**, filed separately, because it is a different piece of work from
 drawing the thing.
 
-### 5. Suggest what to watch
+### 5. Suggest what to watch — SHIPPED 2026-09-23
 
 Asana 1217468989312588 · Ontology & Data Model
 
-Recommendations from `sem.user_taste_affinity`, which already exists and already powers the five
-metrics on `/universe/me`. Strong demonstration that the semantic layer is load-bearing: one view,
-another feature, no new model. Constraint worth keeping — recommend only from titles the corpus
-holds and the user has not marked watched, and say _why_ each one ("shares a director with 3 you
-rated 4★+"), because the reason is the product.
+Shipped as a "Worth your time" rail on Home, streamed behind Suspense so it never delays Continue
+Watching. `sem.user_taste_affinity` needed no change — one view, another feature, no new model and
+no new table, which is the clearest evidence in the app that the semantic layer is load-bearing.
+
+**The ranking is the ontology's, not the query's.** `core.predicate_meta` is generated from
+`ontology.yaml` and carries both the path weight and the flag that bars a predicate from path
+intermediates; the query reads both. A shared director outranks a shared actor because
+`directed` is 1.0 and `acted_in` is 1.4 in the file. Editing the file changes the
+recommendations.
+
+Three defects found while building it, each now guarded by a test that was verified to fail
+against the bug:
+
+- Ranked by raw affinity, the top result was _Superman IV: The Quest for Peace_ — shares two
+  genres with things watched. The "both are Drama" failure the spec warns about for path finding,
+  arrived at from a different direction. Genre is excluded by reading the ontology's own flag.
+- Expanding a seed without constraining the predicate recommended seven films Michael Imperioli
+  ACTED in, each labeled "wrote". In a feature whose product is the reason, a false reason is
+  worse than no result.
+- With no diversity cap the answer was six Spider-Man films. Two per seed, the same rule the path
+  finder applies for the same reason.
+
+Not done, and worth considering: this is a rail of nine with one reason each. A dedicated surface
+with both reasons, a runtime filter ("I have 90 minutes") and a "not interested" signal is a real
+feature on top of this one.
 
 ### 6. Shareable watcher persona card
 
