@@ -38,7 +38,27 @@ async function swReady(page: Page): Promise<void> {
   );
 }
 
-test('serves a second visit without waiting for the server', async ({ page }) => {
+test('serves a second visit without waiting for the server', async ({ page, browserName }) => {
+  /**
+   * CHROMIUM ONLY, and this one stings, because iOS Safari is the platform
+   * this change exists for.
+   *
+   * Playwright's WebKit build refuses a navigation whose request is aborted
+   * while a service worker is active -- "Blocked by Web Inspector". It is a
+   * harness limitation, the same one layout.spec.ts already documents for the
+   * offline test, and there is no way to cut the network for a navigation in
+   * WebKit without hitting it.
+   *
+   * So the claim this whole change rests on -- that a repeat visit paints
+   * without the server -- is verified on Chromium here and has to be checked
+   * by hand on a device for Safari. Naming the gap beats a test that quietly
+   * covers the wrong browser.
+   */
+  test.skip(
+    browserName === 'webkit',
+    'Playwright WebKit cannot abort a navigation with an active worker',
+  );
+
   await swReady(page);
   await page.goto('/library');
 

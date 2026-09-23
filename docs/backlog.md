@@ -305,6 +305,12 @@ so interrupting it loses nothing.
 - Manual keyboard and VoiceOver pass on a physical iPhone (AC-32, AC-33). axe covers about a third
   of WCAG and cannot judge focus order.
 - A deliberate rollback drill, exercised once so it is known to work rather than assumed.
+- **Confirm the offline/cached paint on a real iPhone.** The worker now serves navigations
+  stale-while-revalidate, and the test proving a repeat visit paints WITHOUT the server is
+  Chromium-only: Playwright's WebKit refuses a navigation whose request is aborted while a worker
+  is active ("Blocked by Web Inspector"), the same harness limitation `layout.spec.ts` already
+  documents for the offline test. iOS Safari is the platform the change exists for, so that claim
+  is currently unverified where it matters most.
 - Rotate the Resend API key.
 - RLS on `usr.auth_session` — currently covered by a revoked grant, the same way `usr.invite` is.
 - **Genre filters on Search** — the other half of Asana 1217468989312587. Worth deciding what it
