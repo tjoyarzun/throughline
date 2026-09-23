@@ -14,28 +14,40 @@ import { AUTH_STATE, FIXTURES, type Fixtures } from './fixture-paths';
 const fixtures = (): Fixtures => JSON.parse(readFileSync(FIXTURES, 'utf8')) as Fixtures;
 
 /**
- * Type a query and WAIT FOR THE SEARCH TO ANSWER, rather than racing a fixed
- * timeout against it.
+ * Type a query and wait for the search to answer.
  *
- * CI runs the suite against `pnpm dev`, so the first request to /api/search
- * compiles the route on demand. On a loaded runner that took longer than the
- * ten seconds the first version allowed, and the tests failed on WebKit only
- * -- whichever browser happened to arrive first and pay the compile. Waiting
- * on the actual response is correct regardless of how slow the machine is,
- * and it fails fast rather than after a timeout when the request never fires.
+ * Two CI-only failures came out of this helper, both timing, neither a real
+ * defect in the feature:
+ *
+ * 1. Racing a fixed timeout. CI runs against `pnpm dev`, so the first request
+ *    to /api/search compiles the route on demand and can take longer than any
+ *    number worth hardcoding. Waiting on the response itself is correct at any
+ *    speed.
+ *
+ * 2. Typing before React hydrated. `fill()` on a server-rendered input sets
+ *    the DOM value, but with no handler attached yet nothing listens and no
+ *    request is ever made -- so the wait above then timed out on a page that
+ *    looked perfectly fine. The input carries autoFocus, which React applies
+ *    on mount, so focus is a real hydration signal rather than a sleep.
  */
 async function search(page: Page, query: string) {
   await page.goto('/search');
+
+  const box = page.getByRole('searchbox');
+  await expect(box, 'autoFocus lands only after hydration').toBeFocused();
+
   const answered = page.waitForResponse(
     (r) => r.url().includes('/api/search') && r.request().method() === 'GET',
-    { timeout: 60_000 },
   );
-  await page.locator('input').first().fill(query);
+  await box.fill(query);
   await answered;
 }
 
 test.describe('search finds people', () => {
   test.use({ storageState: AUTH_STATE });
+  // Generous, because a cold dev-mode route compile in CI is legitimately slow
+  // and this suite is about behavior, not speed.
+  test.describe.configure({ timeout: 90_000 });
 
   test('a person in the corpus is findable by name', async ({ page }) => {
     const { personName } = fixtures();
