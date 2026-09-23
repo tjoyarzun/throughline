@@ -123,6 +123,17 @@ Small, independent, good filler between the larger items.
 | 1217468989312591 | Instagram-style navigation     | The current five-tab bar is a deliberate decision — five tabs over four-plus-FAB, because the create action here is always search-then-add, and everything primary sits in the bottom third for one-handed use. Worth doing if the current nav is actually failing in use, but it should start from what is wrong with it rather than from another app's shape. |
 | 1217468989312583 | International films and people | Split per the finding above: **seed more Portuguese/Brazilian titles** (a script run, cheap) is separate from **person detail coverage** (a throughput problem, months at the current drain). Neither is "add international support" — that already works.                                                                                                      |
 
+## Known limit: search covers only people in the corpus
+
+A person enters `core` through a **credit**, so someone with no credits on any title we hold has an
+empty filmography. TMDB's multi-search returns such people, and surfacing them would promise a page
+we cannot fill — so the provider's people are deliberately discarded and search answers from the
+58,714 people already in the corpus. Anyone worth searching for is almost certainly among them.
+
+Lifting this means ingesting a person's own filmography on open (TMDB `person/{id}/movie_credits`),
+which pulls titles into the corpus as a side effect of a search. That is a real feature with real
+scope, not a one-line change, and it belongs in its own item.
+
 ## Runbook: backfilling person detail
 
 `scripts/hydrate-people.ts` does in ~35 minutes what the queue walk does in weeks, because the

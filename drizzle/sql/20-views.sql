@@ -149,7 +149,12 @@ CREATE OR REPLACE VIEW sem.title AS
 
 CREATE OR REPLACE VIEW sem.person AS
   SELECT
-    p.id, p.slug, p.name, p.birthday, p.deathday, p.place_of_birth, p.biography,
+    p.id, p.slug, p.name,
+    -- Exposed so search can match on it, the way sem.title exposes sort_title.
+    -- Without it a person search had to fall back to the raw name and lost
+    -- diacritic and article normalization.
+    p.sort_name,
+    p.birthday, p.deathday, p.place_of_birth, p.biography,
     p.known_for_department, p.gender, p.profile_path, p.popularity, p.also_known_as,
     COALESCE((
       SELECT jsonb_object_agg(predicate, n)

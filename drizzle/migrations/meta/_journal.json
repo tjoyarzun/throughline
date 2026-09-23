@@ -57,6 +57,20 @@
       "when": 1790108668533,
       "tag": "0007_overjoyed_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790122752145,
+      "tag": "0008_faulty_scorpion",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790122786010,
+      "tag": "0009_small_jack_power",
+      "breakpoints": true
     }
   ]
 }

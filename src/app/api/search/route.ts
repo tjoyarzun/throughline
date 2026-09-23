@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { searchTitles } from '@/server/repos/titles';
+import { searchTitles, searchPeople } from '@/server/repos/titles';
 import { searchProvider } from '@/server/providers/tmdb/search';
 import { getAccountId } from '@/server/auth/session';
 import { rateLimit } from '@/server/rate-limit';
@@ -43,7 +43,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   // Local never fails the request: if the provider is down, search still works
   // against everything already ingested.
-  const local = await searchTitles(q);
+  const [local, people] = await Promise.all([searchTitles(q), searchPeople(q)]);
   const localTmdbIds = new Set(local.map((t) => t.tmdb_id).filter(Boolean));
 
   let remote: Awaited<ReturnType<typeof searchProvider>> = [];
@@ -52,5 +52,13 @@ export async function GET(request: Request): Promise<NextResponse> {
   } catch {
     // Degrade to local-only rather than erroring the search box.
   }
-  return NextResponse.json({ local, remote });
+
+  /* People come from the corpus only, deliberately.
+     TMDB's multi-search returns people we do not hold, and surfacing them
+     would promise a page we cannot fill: a person enters core through a
+     CREDIT, so someone with no credits on any of our titles has an empty
+     filmography and nothing else to show. 58,714 people are already in the
+     corpus, drawn from the credits of every title we hold, so anyone worth
+     searching for is almost certainly among them. */
+  return NextResponse.json({ local, remote, people });
 }

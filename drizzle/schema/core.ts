@@ -155,7 +155,24 @@ export const person = core.table(
      */
     detailSyncedAt: timestamp('detail_synced_at', { withTimezone: true }),
   },
-  (t) => [index('person_sort_name_idx').on(t.sortName)],
+  (t) => [
+    index('person_sort_name_idx').on(t.sortName),
+    /**
+     * Fuzzy name search.
+     *
+     * Search reached people for the first time and immediately needed this:
+     * `sort_name % 'john krasinski'` over 58,714 rows is a sequential scan
+     * computing similarity for every one, measured at 109ms -- far too slow
+     * for something that fires on a keystroke. The btree above cannot serve a
+     * trigram operator; only a GIN trgm index can.
+     */
+    index('person_sort_name_trgm_idx').using('gin', sql`sort_name gin_trgm_ops`),
+    /* The search also does ILIKE '%q%' to catch substrings the similarity
+       threshold misses on short queries. A leading wildcard defeats a btree,
+       but a GIN trgm index serves it -- which is the difference between 29ms
+       and a couple. */
+    index('person_name_trgm_idx').using('gin', sql`name gin_trgm_ops`),
+  ],
 );
 
 export const character = core.table(

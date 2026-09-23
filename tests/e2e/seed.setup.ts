@@ -59,6 +59,19 @@ setup('seed an account, a title and a share', async () => {
       RETURNING id, slug`;
     const titleId = title!.id;
 
+    /* A person, credited on the fixture title. Search reaches people now, and
+       a test for that would pass by finding nothing if the corpus were empty
+       -- so the fixture has to contain someone findable. */
+    const [person] = await sql<{ id: string; slug: string }[]>`
+      INSERT INTO core.person (slug, name, sort_name, known_for_department)
+      VALUES ('e2e-fixture-person', 'Edwina Testwright', 'edwina testwright', 'Acting')
+      ON CONFLICT (slug) DO UPDATE SET name = excluded.name
+      RETURNING id, slug`;
+    await sql`
+      INSERT INTO core.credit (person_id, title_id, predicate, billing_order)
+      VALUES (${person!.id}, ${titleId}, 'acted_in', 0)
+      ON CONFLICT DO NOTHING`;
+
     await sql`
       INSERT INTO usr.title_state (account_id, title_id, status, is_favorite)
       VALUES (${accountId}, ${titleId}, 'watched', true)
@@ -119,7 +132,14 @@ setup('seed an account, a title and a share', async () => {
 
     mkdirSync(dirname(AUTH_STATE), { recursive: true });
     writeFileSync(AUTH_STATE, JSON.stringify(state, null, 2));
-    writeFileSync(FIXTURES, JSON.stringify({ titleSlug: title!.slug, shareSlug }, null, 2));
+    writeFileSync(
+      FIXTURES,
+      JSON.stringify(
+        { titleSlug: title!.slug, shareSlug, personName: 'Edwina Testwright' },
+        null,
+        2,
+      ),
+    );
   } finally {
     await sql.end();
   }

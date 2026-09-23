@@ -1,0 +1,1 @@
+CREATE INDEX "person_name_trgm_idx" ON "core"."person" USING gin (name gin_trgm_ops);

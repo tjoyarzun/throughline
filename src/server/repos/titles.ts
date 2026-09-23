@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { pooledDatabaseUrl } from '../db/resolve-url';
-import { normalizeTitle } from '../ingest/normalize';
+import { normalizeTitle, personSortName } from '../ingest/normalize';
 
 /**
  * Title reads. Queries sem.* only — never core, never raw.
@@ -333,4 +333,41 @@ export async function titlesByTmdbIds(ids: number[]): Promise<TitleSummary[]> {
     WHERE tmdb_id = ANY(${ids.map(String)}) AND poster_path IS NOT NULL`;
   const byTmdb = new Map(rows.map((r) => [String(r.tmdb_id), r]));
   return ids.map((id) => byTmdb.get(String(id))).filter((r): r is TitleSummary => Boolean(r));
+}
+
+export interface PersonSummary {
+  id: string;
+  slug: string;
+  name: string;
+  known_for_department: string | null;
+  profile_path: string | null;
+  tmdb_id: string | null;
+}
+
+/**
+ * People, by name.
+ *
+ * Search reached only titles until now, which meant a person in the corpus
+ * with sixteen credits -- John Krasinski, in the report that surfaced this --
+ * was unfindable by name, even though their detail page existed and was
+ * linked from every title they worked on.
+ *
+ * Mirrors searchTitles: trigram similarity on the normalized name for fuzzy
+ * and misspelled input, OR a substring match for the short queries where the
+ * similarity threshold is too blunt. Both halves are GIN-indexed; without
+ * them this is a sequential scan over 58,714 rows.
+ *
+ * Ranked by similarity then popularity, so typing "john" surfaces the John
+ * people anyone has heard of rather than whoever sorts first.
+ */
+export async function searchPeople(query: string, limit = 8): Promise<PersonSummary[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const normalized = personSortName(q);
+  return db()<PersonSummary[]>`
+    SELECT p.id, p.slug, p.name, p.known_for_department, p.profile_path, p.tmdb_id
+    FROM sem.person p
+    WHERE p.sort_name % ${normalized} OR p.name ILIKE ${'%' + q + '%'}
+    ORDER BY similarity(p.sort_name, ${normalized}) DESC, p.popularity DESC NULLS LAST
+    LIMIT ${limit}`;
 }

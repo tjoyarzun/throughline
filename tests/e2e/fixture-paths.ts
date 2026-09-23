@@ -10,4 +10,5 @@ export const FIXTURES = 'tests/e2e/.auth/fixtures.json';
 export interface Fixtures {
   titleSlug: string;
   shareSlug: string;
+  personName: string;
 }

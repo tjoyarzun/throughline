@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { posterUrl } from '@/lib/tmdb-image';
+import { posterUrl, profileUrl } from '@/lib/tmdb-image';
 import { PosterSkeleton } from '@/components/ui/skeleton';
 
 interface LocalResult {
@@ -13,6 +13,13 @@ interface LocalResult {
   release_year: number | null;
   poster_path: string | null;
   genres: string[];
+}
+interface PersonResult {
+  id: string;
+  slug: string;
+  name: string;
+  known_for_department: string | null;
+  profile_path: string | null;
 }
 interface RemoteResult {
   tmdbId: number;
@@ -50,6 +57,7 @@ export function SearchClient({
   const [q, setQ] = useState('');
   const [local, setLocal] = useState<LocalResult[]>([]);
   const [remote, setRemote] = useState<RemoteResult[]>([]);
+  const [people, setPeople] = useState<PersonResult[]>([]);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -70,9 +78,14 @@ export function SearchClient({
           signal: ac.signal,
         });
         if (!res.ok) return;
-        const data = (await res.json()) as { local: LocalResult[]; remote: RemoteResult[] };
+        const data = (await res.json()) as {
+          local: LocalResult[];
+          remote: RemoteResult[];
+          people: PersonResult[];
+        };
         setLocal(data.local);
         setRemote(data.remote);
+        setPeople(data.people ?? []);
       } catch {
         // Aborted or offline: keep whatever is on screen rather than blanking it.
       } finally {
@@ -141,6 +154,47 @@ export function SearchClient({
               </li>
             ))}
         </ul>
+      )}
+
+      {showing && people.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2
+            className="text-xs uppercase tracking-widest"
+            style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+          >
+            People
+          </h2>
+          <ul className="flex flex-col">
+            {people.map((p) => (
+              <li key={p.id}>
+                <Link href={`/person/${p.slug}`} className="flex min-h-14 items-center gap-3 py-2">
+                  <span
+                    className="block size-10 shrink-0 overflow-hidden rounded-full"
+                    style={{ background: 'var(--tl-surface-2)' }}
+                  >
+                    {p.profile_path && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={profileUrl(p.profile_path, 80)}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm">{p.name}</span>
+                    {p.known_for_department && (
+                      <span className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
+                        {p.known_for_department}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {remoteResults.length > 0 && (

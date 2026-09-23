@@ -38,6 +38,7 @@ Devastating
 Domo
 Drizzle
 DuVernay
+Edwina
 Etranger
 FRBR
 Fandango
@@ -125,6 +126,7 @@ TTFB
 Taika
 Tarkovsky
 Tensei
+Testwright
 Throughline
 Togashi
 Toriyama
