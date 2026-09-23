@@ -19,6 +19,7 @@ Bergman
 Bigelow
 Blumhouse
 Bong
+Brolin
 Carell
 Chiang
 Chloé
@@ -29,6 +30,7 @@ Cronenberg
 Crosswalk
 Cuarón
 Céline
+Dastmalchian
 Debra
 Deckard
 Denis
@@ -110,6 +112,7 @@ Sciamma
 Sentry
 Serwist
 Shippūden
+Sicario
 Sigma
 Sofia
 Strangelove

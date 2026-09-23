@@ -50,9 +50,16 @@ export default async function ExplorePage({
  *   focus on, so it is filtered out here rather than rendered as a dead link.
  *
  * Popularity remains as the floor, for a brand-new account on a cold cache.
+ *
+ * The two groups are rendered SEPARATELY and labeled. Blended into one grid
+ * they were indistinguishable, and because trending and popularity are the
+ * same for everybody, two people with small libraries saw near-identical
+ * pages and reasonably wondered whether they were seeing each other's. They
+ * were not -- but a page that invites that question is badly built, and the
+ * fix is to say which half is yours.
  */
 async function StartHere() {
-  const seeds = await exploreSeeds(12);
+  const { mine, shared } = await exploreSeeds(12);
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
@@ -64,6 +71,41 @@ async function StartHere() {
           Start anywhere and walk outward. Every step is a relationship the ontology declares.
         </p>
       </header>
+      <SeedGroup
+        heading="From your library"
+        note="the part of the graph you have opinions about"
+        seeds={mine}
+      />
+      <SeedGroup
+        heading="Trending now"
+        note="the same for everyone — a shared starting point, not yours"
+        seeds={shared}
+      />
+    </div>
+  );
+}
+
+function SeedGroup({
+  heading,
+  note,
+  seeds,
+}: {
+  heading: string;
+  note: string;
+  seeds: TitleSummary[];
+}) {
+  if (seeds.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-2">
+      <h2
+        className="text-xs uppercase tracking-widest"
+        style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+      >
+        {heading}
+      </h2>
+      <p className="text-xs" style={{ color: 'var(--tl-text-faint)' }}>
+        {note}
+      </p>
       <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-6">
         {seeds.map((t) => (
           <li key={t.id}>
@@ -91,31 +133,35 @@ async function StartHere() {
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }
 
-async function exploreSeeds(limit: number): Promise<TitleSummary[]> {
-  const out: TitleSummary[] = [];
+async function exploreSeeds(
+  limit: number,
+): Promise<{ mine: TitleSummary[]; shared: TitleSummary[] }> {
   const seen = new Set<string>();
-  const add = (rows: TitleSummary[]) => {
+  const take = (rows: TitleSummary[], n: number) => {
+    const out: TitleSummary[] = [];
     for (const r of rows) {
-      if (out.length >= limit || seen.has(r.id)) continue;
+      if (out.length >= n || seen.has(r.id)) continue;
       seen.add(r.id);
       out.push(r);
     }
+    return out;
   };
 
+  let mine: TitleSummary[] = [];
   const accountId = await getAccountId();
   if (accountId) {
-    const mine = await listLibrary(accountId, { sort: 'added', limit: 6 });
-    add(
-      mine
+    const library = await listLibrary(accountId, { sort: 'added', limit: 12 });
+    mine = take(
+      library
         .filter((m) => m.poster_path)
         .map((m) => ({
           id: m.title_id,
           slug: m.slug,
-          kind: m.kind,
+          kind: m.kind === 'show' ? ('show' as const) : ('movie' as const),
           title: m.title,
           release_year: m.release_year,
           poster_path: m.poster_path,
@@ -123,15 +169,21 @@ async function exploreSeeds(limit: number): Promise<TitleSummary[]> {
           genres: m.genres ?? [],
           tmdb_id: null,
         })),
+      6,
     );
   }
 
+  /* The shared half is sized against what the personal half actually filled,
+     so an empty library still gets a full page rather than a lonely row. */
+  const room = limit - mine.length;
+  let shared: TitleSummary[] = [];
   try {
-    add(await titlesByTmdbIds((await trending(24)).map((t) => t.tmdbId)));
+    shared = take(await titlesByTmdbIds((await trending(24)).map((t) => t.tmdbId)), room);
   } catch {
     // The provider being down is not a reason to have nowhere to start.
   }
+  if (shared.length < room)
+    shared = [...shared, ...take(await popularTitles(limit), room - shared.length)];
 
-  if (out.length < limit) add(await popularTitles(limit));
-  return out.slice(0, limit);
+  return { mine, shared };
 }

@@ -369,7 +369,14 @@ export function narrate(from: GraphNode, steps: PathStep[]): string {
       ? (spec?.narrationInverse ?? spec?.narration)
       : (spec?.narration ?? spec?.narrationInverse);
 
-    const subject = i === 0 ? from.label : 'which';
+    // "which" for a thing, "who" for a person. The pronoun depends on what the
+    // PREVIOUS hop landed on, not on this step's predicate -- it stands in for
+    // the node just named. Hardcoding "which" produced "Arrival was directed
+    // by Denis Villeneuve, which directed Blade Runner 2049" on the app's
+    // flagship surface.
+    const previous = i > 0 ? steps[i - 1]!.node.type : null;
+    const subject =
+      i === 0 ? from.label : previous === 'person' || previous === 'character' ? 'who' : 'which';
     const fragment = template
       ? template.replace('{subject}', subject).replace('{object}', s.node.label)
       : `${subject} ${s.predicateLabel} ${s.node.label}`;

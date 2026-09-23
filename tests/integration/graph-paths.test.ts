@@ -120,7 +120,32 @@ run('path ranking', () => {
     ]);
     // Reading the edge backwards must use the inverse template. Falling back
     // to the bare label produced fragments like "which similar to Get Out".
-    expect(s).toBe('Arrival was directed by Denis Villeneuve, which directed Blade Runner 2049.');
+    //
+    // "who", not "which": the pronoun stands in for Denis Villeneuve. This
+    // assertion previously encoded the wrong word, which is exactly why the
+    // grammar was wrong on the app's flagship surface and nothing complained.
+    expect(s).toBe('Arrival was directed by Denis Villeneuve, who directed Blade Runner 2049.');
+  });
+
+  it('keeps "which" when the previous hop was not a person', () => {
+    const s = narrate(node('a', 'Arrival'), [
+      {
+        predicate: 'similar_to',
+        canonical: 'similar_to',
+        isInverse: false,
+        predicateLabel: 'similar to',
+        node: node('p', 'Prisoners'),
+      },
+      {
+        predicate: 'similar_to',
+        canonical: 'similar_to',
+        isInverse: false,
+        predicateLabel: 'similar to',
+        node: node('s', 'Sicario'),
+      },
+    ]);
+    expect(s).toContain('which');
+    expect(s).not.toContain('who');
   });
 
   it('rejects a path that repeats an earlier one', () => {

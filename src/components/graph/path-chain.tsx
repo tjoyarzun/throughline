@@ -9,8 +9,41 @@ import { nodeImageUrl } from '@/lib/tmdb-image';
  * survive being scrolled with a thumb. A force-directed rendering of the same
  * four nodes would be prettier and would answer nothing.
  */
+/**
+ * How strong a connection is, as a word rather than a number.
+ *
+ * The raw ranking cost used to be printed here -- "cost 5.9" -- which is an
+ * implementation detail wearing a label that reads like a price. The number is
+ * also not comparable across paths of different lengths, because cost is a SUM
+ * over hops: a three-step path always outscores a two-step one even when every
+ * link is stronger.
+ *
+ * So this divides by length and buckets the result. The thresholds are
+ * measured, not invented -- over real pairs in the corpus:
+ *
+ *   2.8 - 3.0   a shared director        strong
+ *   3.8         a shared lead actor      strong
+ *   6.1 - 6.3   a similar_to chain       moderate
+ *   8.2         a shared theme           faint
+ *   9.5         long paths through hubs  faint
+ *
+ * Which is the ranking's own opinion made legible: sharing a director is a
+ * real claim, sharing a theme is a thin one, and the badge should say so.
+ */
+const STRENGTH = [
+  { max: 5, label: 'Strong', hint: 'a direct, specific relationship' },
+  { max: 8, label: 'Moderate', hint: 'a real link, through more crowded ground' },
+  { max: Infinity, label: 'Faint', hint: 'connected, but only loosely' },
+] as const;
+
+export function pathStrength(cost: number, steps: number) {
+  const perHop = steps > 0 ? cost / steps : cost;
+  return STRENGTH.find((s) => perHop < s.max)!;
+}
+
 export function PathChain({ path, index }: { path: GraphPath; index: number }) {
   const nodes = [path.from, ...path.steps.map((s) => s.node)];
+  const strength = pathStrength(path.cost, path.steps.length);
   return (
     <li
       className="flex flex-col gap-3 rounded-xl border p-4"
@@ -24,10 +57,18 @@ export function PathChain({ path, index }: { path: GraphPath; index: number }) {
           Path {index + 1} · {path.steps.length} steps
         </span>
         <span
-          className="text-[10px] tabular-nums"
-          style={{ color: 'var(--tl-text-dim)', fontFamily: 'var(--font-mono)' }}
+          className="rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider"
+          style={{
+            border: '1px solid var(--tl-border-strong)',
+            color: 'var(--tl-text-dim)',
+            fontFamily: 'var(--font-mono)',
+          }}
+          // The exact score stays reachable for anyone who wants it, without
+          // putting a float on a consumer surface.
+          title={strength.hint}
+          data-cost={path.cost.toFixed(2)}
         >
-          cost {path.cost.toFixed(1)}
+          {strength.label}
         </span>
       </div>
 
