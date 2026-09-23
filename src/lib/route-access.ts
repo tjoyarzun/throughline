@@ -15,7 +15,12 @@
 /** No credential required at all. */
 export const PUBLIC_PREFIXES = [
   '/s/', // share pages
-  '/explore/', // public ontology pages (Phase 2 backlog)
+  // BOTH forms. isUngated matches on equality or prefix, so '/explore/' alone
+  // does not cover the bare '/explore' -- which is precisely the URL a stranger
+  // gets handed. It 307'd to sign-in, and the landing page was unreachable by
+  // the only people it exists for.
+  '/explore',
+  '/explore/',
   '/auth/', // the sign-in page itself
   '/api/auth/', // Better Auth handlers
   '/api/health',

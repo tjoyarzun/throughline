@@ -13,6 +13,56 @@ import { test, expect } from '@playwright/test';
 const PAGE = '/explore/title/e2e-fixture-film';
 
 test.describe('public explore', () => {
+  test('the landing answers with no session', async ({ request }) => {
+    // '/explore' is NOT covered by an allowlist entry of '/explore/': the gate
+    // matches on equality or prefix, so the bare path 307'd to sign-in -- the
+    // exact URL a stranger gets handed.
+    const res = await request.get('/explore', { maxRedirects: 0, failOnStatusCode: false });
+    expect(res.status()).toBe(200);
+  });
+
+  /**
+   * The scripts must actually RUN, twice.
+   *
+   * A nonce-based CSP and cached HTML are incompatible: the middleware mints a
+   * fresh nonce per request while cached HTML carries a stale one, or none at
+   * all when it was prerendered. Every script is then blocked and the page
+   * renders its server half only -- which looked fine, because the lists are
+   * the server half. The canvas sitting at its untouched 300x150 default is
+   * the tell.
+   *
+   * Two passes, because the first request is what populates a cache and the
+   * second is what reads it.
+   */
+  for (const path of ['/explore', '/explore/title/e2e-fixture-film']) {
+    test(`${path} hydrates on a repeat request`, async ({ page }) => {
+      const violations: string[] = [];
+      page.on('console', (m) => {
+        if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) {
+          violations.push(m.text().slice(0, 120));
+        }
+      });
+
+      for (const pass of [1, 2]) {
+        violations.length = 0;
+        await page.goto(path, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(1200);
+        expect(violations, `CSP blocked scripts on pass ${pass} of ${path}`).toEqual([]);
+
+        /* Hydration is asserted through the canvas, not the nonce. Browsers
+           strip the nonce CONTENT attribute after parsing -- getAttribute
+           returns "" by design, to stop a script reading it back out -- so
+           checking it tested nothing. An unhydrated canvas keeps its 300x150
+           intrinsic default; a sized one proves JavaScript ran. */
+        const sized = await page.evaluate(() => {
+          const c = document.querySelector('canvas');
+          return c ? c.width > 400 : null;
+        });
+        expect(sized, `pass ${pass}: canvas never sized, so scripts did not run`).toBe(true);
+      }
+    });
+  }
+
   test('answers with no session at all', async ({ request }) => {
     const res = await request.get(PAGE, { maxRedirects: 0, failOnStatusCode: false });
     expect(res.status(), 'a public route must not bounce to sign-in').toBe(200);

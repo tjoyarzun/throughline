@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { graphEngine } from '@/lib/graph/postgres-engine';
-import { Orbit } from '@/components/graph/orbit';
+import { ConstellationCanvas } from '@/components/graph/constellation-canvas';
+import { NeighborGroups } from '@/components/graph/neighbor-groups';
+import { trackedAmong } from '@/server/repos/user';
 import { popularTitles, titlesByTmdbIds, type TitleSummary } from '@/server/repos/titles';
 import { trending } from '@/server/providers/tmdb/discovery';
 import { getAccountId } from '@/server/auth/session';
@@ -22,14 +24,54 @@ export default async function ExplorePage({
 
   const center = await graphEngine.node({ type, id });
   if (!center) return <StartHere />;
-  const groups = await graphEngine.neighbors({ type, id }, { perGroup: 8 });
+
+  const [groups, neighborhood, accountId] = await Promise.all([
+    graphEngine.neighbors({ type, id }, { perGroup: 12 }),
+    graphEngine.neighborhood({ type, id }),
+    getAccountId(),
+  ]);
+
+  /**
+   * The personal layer over the global one.
+   *
+   * This is the only thing the signed-in view has that the public page cannot:
+   * not a graph, but YOUR position in it. Titles are the only trackable type,
+   * so the intersection is over those.
+   */
+  let mine = new Set<string>();
+  if (accountId && neighborhood) {
+    const titleIds = neighborhood.nodes.filter((n) => n.type === 'title').map((n) => n.id);
+    const tracked = await trackedAmong(accountId, titleIds);
+    mine = new Set([...tracked].map((tid) => `title:${tid}`));
+  }
+
+  const hrefFor = (n: { type: string; id: string }) => `/universe/explore?focus=${n.type}:${n.id}`;
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/universe" className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
-        ← Universe
-      </Link>
-      <Orbit center={center} groups={groups} />
+      <header className="flex flex-col gap-1">
+        <Link href="/universe" className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
+          ← Universe
+        </Link>
+        <h1 className="text-2xl leading-tight">{center.label}</h1>
+        {center.sublabel && (
+          <p className="text-sm" style={{ color: 'var(--tl-text-dim)' }}>
+            {center.sublabel}
+          </p>
+        )}
+      </header>
+
+      {neighborhood && (
+        <ConstellationCanvas
+          center={center}
+          nodes={neighborhood.nodes}
+          edges={neighborhood.edges}
+          mine={[...mine]}
+          linkTo="universe"
+        />
+      )}
+
+      <NeighborGroups groups={groups} hrefFor={hrefFor} mine={mine} />
     </div>
   );
 }

@@ -434,3 +434,43 @@ export async function accountRegion(accountId: string): Promise<string> {
   );
   return (rows[0]?.region ?? 'US').trim().toUpperCase() || 'US';
 }
+
+/**
+ * Which of these titles the account already tracks.
+ *
+ * The personal layer drawn over the global graph: "you have seen 4 of
+ * Villeneuve's 11" is the clearest single statement of what this whole
+ * architecture is for, and it needs exactly this -- an intersection, computed
+ * where the row-level policy can enforce it.
+ *
+ * Takes the ids to check rather than returning the whole library, because the
+ * caller already has a bounded neighborhood and the library may not be.
+ */
+export async function trackedAmong(accountId: string, titleIds: string[]): Promise<Set<string>> {
+  if (titleIds.length === 0) return new Set();
+
+  /**
+   * IN with an expanded parameter list, not ANY(array), and the distinction is
+   * not cosmetic.
+   *
+   * This file uses DRIZZLE's sql template; the graph engine uses postgres.js's.
+   * They look identical and interpolate arrays differently: postgres.js sends
+   * a real Postgres array, so `= ANY(${ids})` is right there, while drizzle
+   * expands the array into a parameter list, which Postgres reads as a record
+   * and rejects with "op ANY/ALL (array) requires array on right side".
+   *
+   * It cost a debugging round because the first symptom was not an error
+   * message -- the page just quietly rendered its empty state.
+   */
+  return withUser(accountId, async (tx) => {
+    const found = (await tx.execute(
+      sql`SELECT title_id FROM usr.title_state
+          WHERE account_id = ${accountId}::uuid
+            AND title_id IN (${sql.join(
+              titleIds.map((id) => sql`${id}::uuid`),
+              sql`, `,
+            )})`,
+    )) as unknown as { title_id: string }[];
+    return new Set(found.map((r) => r.title_id));
+  });
+}

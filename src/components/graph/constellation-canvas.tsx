@@ -42,6 +42,13 @@ interface Placed {
 const FALLBACK = '#8B93A1';
 const PALETTE = Object.values(graphPalette);
 
+/** Shared with NeighborGroups so the canvas and the list never disagree. */
+function hrefOf(node: GraphNode, linkTo: 'explore' | 'universe'): string {
+  return linkTo === 'universe'
+    ? `/universe/explore?focus=${node.type}:${node.id}`
+    : `/explore/${node.type}/${node.slug}`;
+}
+
 function typeColor(type: string): string {
   return (graphPalette as Record<string, string>)[type] ?? FALLBACK;
 }
@@ -186,10 +193,31 @@ export function ConstellationCanvas({
   center,
   nodes,
   edges,
+  mine,
+  linkTo = 'explore',
 }: {
   center: GraphNode;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /**
+   * Node keys (`type:id`) the signed-in person already tracks.
+   *
+   * The personal layer over the global one, which is the entire thesis: you
+   * are not looking at a graph, you are looking at YOUR position in it. Absent
+   * on the public page, because there is nobody to have a position.
+   */
+  mine?: string[];
+  /**
+   * Where a node links.
+   *
+   * A STRING, not a callback. This is a client component, and React refuses a
+   * function passed across the server boundary -- which showed up not as a
+   * type error but as the page rendering its empty state at runtime.
+   *
+   * 'universe' keeps a signed-in reader inside the app shell, with their own
+   * library alongside; 'explore' is the public surface.
+   */
+  linkTo?: 'explore' | 'universe';
 }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -211,6 +239,14 @@ export function ConstellationCanvas({
 
   const [hoverLabel, setHoverLabel] = useState<string | null>(null);
   const [lit, setLit] = useState<string | null>(null);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const onlyMineRef = useRef(false);
+
+  const mineSet = useMemo(() => new Set(mine ?? []), [mine]);
+  const mineCount = useMemo(
+    () => nodes.filter((n) => mineSet.has(`${n.type}:${n.id}`)).length,
+    [nodes, mineSet],
+  );
 
   const predicates = useMemo(() => {
     const seen = new Map<string, string>();
@@ -338,12 +374,26 @@ export function ConstellationCanvas({
         );
 
       for (const p of placed) {
-        const faded = near ? !near.has(p.key) && p !== hover : false;
+        const isMine = mineSet.has(p.key);
+        const dimmedByMine = onlyMineRef.current && !isMine && !p.fixed;
+        const faded = (near ? !near.has(p.key) && p !== hover : false) || dimmedByMine;
         ctx.globalAlpha = (faded ? 0.18 : 1) * progress;
         ctx.fillStyle = typeColor(p.node.type);
         ctx.beginPath();
         ctx.arc(p.x, p.y, p === hover ? p.r + 2 : p.r, 0, Math.PI * 2);
         ctx.fill();
+
+        /* Yours gets a ring, not a different fill. Node color already means
+           entity type (1.4.1), and overloading it would make the two readings
+           fight. A ring is a second channel. */
+        if (isMine && !p.fixed) {
+          ctx.globalAlpha = (faded ? 0.25 : 1) * progress;
+          ctx.strokeStyle = accent;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r + 3.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         if (p.fixed) {
           ctx.strokeStyle = accent;
           ctx.lineWidth = 1.5;
@@ -355,7 +405,8 @@ export function ConstellationCanvas({
 
       // Biggest first: when space is contested, the hub should win it.
       for (const p of [...placed].sort((a, b) => b.r - a.r)) {
-        const faded = near ? !near.has(p.key) && p !== hover : false;
+        const dimmedByMine = onlyMineRef.current && !mineSet.has(p.key) && !p.fixed;
+        const faded = (near ? !near.has(p.key) && p !== hover : false) || dimmedByMine;
         if (faded && p !== hover) continue;
         ctx.font = p.fixed
           ? '600 12px ui-sans-serif, system-ui, sans-serif'
@@ -397,7 +448,7 @@ export function ConstellationCanvas({
     };
     // Depends on the DATA only. Hover and the filter are read from refs inside
     // draw(), so changing either never re-runs this effect.
-  }, [center, nodes, edges, colorOf]);
+  }, [center, nodes, edges, colorOf, mineSet]);
 
   const hit = useCallback((e: React.MouseEvent<HTMLCanvasElement>): Placed | null => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -447,7 +498,7 @@ export function ConstellationCanvas({
           }}
           onClick={(e) => {
             const p = hit(e);
-            if (p) router.push(`/explore/${p.node.type}/${p.node.slug}`);
+            if (p) router.push(hrefOf(p.node, linkTo));
           }}
           /* Decorative: every node is a real link in the lists below. Adding
              these to the tab order would make a screen reader read the whole
@@ -470,6 +521,30 @@ export function ConstellationCanvas({
       {/* HTML, not canvas: crisp at any zoom, selectable, and it doubles as a
           filter. */}
       <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {mineCount > 0 && (
+          <button
+            type="button"
+            aria-pressed={onlyMine}
+            onClick={() => {
+              const next = !onlyMine;
+              setOnlyMine(next);
+              onlyMineRef.current = next;
+              drawRef.current();
+            }}
+            className="flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px]"
+            style={{
+              border: `1px solid ${onlyMine ? 'var(--tl-accent)' : 'var(--tl-border-strong)'}`,
+              color: onlyMine ? 'var(--tl-text)' : 'var(--tl-text-dim)',
+            }}
+          >
+            <span
+              aria-hidden
+              className="block size-2 rounded-full"
+              style={{ border: '2px solid var(--tl-accent)' }}
+            />
+            Yours · {mineCount} of {nodes.length}
+          </button>
+        )}
         {predicates.map((p) => {
           const on = lit === p.predicate;
           return (

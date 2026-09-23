@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
 import { graphEngine } from '@/lib/graph/postgres-engine';
 import { nodeImageUrl } from '@/lib/tmdb-image';
 import { ConstellationCanvas } from '@/components/graph/constellation-canvas';
@@ -22,7 +23,21 @@ import type { GraphNode, NeighborGroup } from '@/lib/graph/types';
  * cannot rot, because it is the thing being enhanced.
  */
 
-export const revalidate = 3600;
+/**
+ * Dynamic, with the DATA cached rather than the HTML.
+ *
+ * A nonce-based CSP and cached HTML are incompatible: the middleware mints a
+ * fresh nonce per request and sends it in the header, while a cached page
+ * carries whatever nonce existed when it was generated -- or, when prerendered
+ * before any request, none at all. The browser then blocks every script on the
+ * page. It presented as a blank canvas with the lists intact, because the
+ * server-rendered half is exactly the half that does not need JavaScript.
+ *
+ * So the page is rendered per request, and the expensive global queries are
+ * wrapped in unstable_cache instead. Nothing user-scoped may ever go in there;
+ * these read sem only.
+ */
+export const dynamic = 'force-dynamic';
 
 const TYPES = new Set(['title', 'person', 'concept', 'collection', 'organization', 'work']);
 
@@ -37,7 +52,14 @@ const TYPE_LABEL: Record<string, string> = {
   character: 'Character',
 };
 
-async function load(type: string, slug: string) {
+/* Global reads only -- sem, never usr -- so caching them is safe. */
+const cachedLoad = unstable_cache(
+  async (type: string, slug: string) => loadUncached(type, slug),
+  ['explore-node'],
+  { revalidate: 3600 },
+);
+
+async function loadUncached(type: string, slug: string) {
   if (!TYPES.has(type)) return null;
   const node = await graphEngine.nodeBySlug(type, slug);
   if (!node) return null;
@@ -59,7 +81,7 @@ export async function generateMetadata({
   params: Promise<{ type: string; slug: string }>;
 }): Promise<Metadata> {
   const { type, slug } = await params;
-  const data = await load(type, slug);
+  const data = await cachedLoad(type, slug);
   if (!data) return { title: 'Not found' };
 
   const { node, groups } = data;
@@ -83,7 +105,7 @@ export default async function ExploreNodePage({
   params: Promise<{ type: string; slug: string }>;
 }) {
   const { type, slug } = await params;
-  const data = await load(type, slug);
+  const data = await cachedLoad(type, slug);
   if (!data) notFound();
   const { node, groups, neighborhood } = data;
 
