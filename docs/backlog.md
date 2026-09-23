@@ -123,6 +123,28 @@ Small, independent, good filler between the larger items.
 | 1217468989312591 | Instagram-style navigation     | The current five-tab bar is a deliberate decision — five tabs over four-plus-FAB, because the create action here is always search-then-add, and everything primary sits in the bottom third for one-handed use. Worth doing if the current nav is actually failing in use, but it should start from what is wrong with it rather than from another app's shape. |
 | 1217468989312583 | International films and people | Split per the finding above: **seed more Portuguese/Brazilian titles** (a script run, cheap) is separate from **person detail coverage** (a throughput problem, months at the current drain). Neither is "add international support" — that already works.                                                                                                      |
 
+## Runbook: backfilling person detail
+
+`scripts/hydrate-people.ts` does in ~35 minutes what the queue walk does in weeks, because the
+walk is capped at one 45-second drain window a day by the Hobby plan, not by anything about the
+work. Measured: 22.8 people/second against the client's 30/s token bucket.
+
+```bash
+# against production — connection string from the NEON console, not Vercel
+DATABASE_URL='postgresql://…neon.tech/…' pnpm tsx scripts/hydrate-people.ts
+
+pnpm tsx scripts/hydrate-people.ts --limit 500      # try it small first
+pnpm tsx scripts/hydrate-people.ts --concurrency 4  # gentler on TMDB
+```
+
+It writes **straight to whichever database `DATABASE_URL` names**, with no local staging and no
+export file, and that is the important part. Person ids are UUIDv7 generated at insert time in each
+database independently, so local and production do not share them — local Scarlett Johansson has a
+different uuid from production's. Dumping `core.person` from one and restoring into the other would
+attach biographies to the wrong people. The only key the two environments agree on is the TMDB id,
+which is what the script already fetches by. Resumable: it selects only `detail_synced_at IS NULL`,
+so interrupting it loses nothing.
+
 ## Not in Asana, still owed
 
 - Manual keyboard and VoiceOver pass on a physical iPhone (AC-32, AC-33). axe covers about a third

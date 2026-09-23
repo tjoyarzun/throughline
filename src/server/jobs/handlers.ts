@@ -2,6 +2,7 @@ import type { Sql } from '../ingest/resolve';
 import { deriveThemes } from '../ingest/derive-themes';
 import { deriveSimilar } from '../ingest/derive-similar';
 import { enrichWikidata } from '../ingest/enrich-wikidata';
+import { mapPool } from '@/lib/pool';
 import { Ingestor } from '../ingest/ingest';
 import { TmdbClient } from '../providers/tmdb/client';
 
@@ -180,11 +181,24 @@ export const HANDLERS: Record<string, Handler> = {
       LIMIT ${batch}`;
     if (rows.length === 0) return;
 
+    /* Eight at a time, not one.
+       Each person is a ~160ms network round trip, so a serial loop ran at ~6
+       requests a second against a limiter that allows 30 -- the walk was
+       network-bound and idle at the same time. The client's token bucket is
+       shared across these calls and still governs the real rate, so this
+       raises throughput about fivefold without raising the request rate above
+       what was already agreed with TMDB. */
     const ing = new Ingestor(sql, new TmdbClient(undefined, captureRaw(sql)));
-    for (const r of rows) {
+    await mapPool(rows, 8, async (r) => {
       const id = Number(r.tmdb_id);
-      if (Number.isFinite(id)) await ing.hydratePerson(id);
-    }
+      if (!Number.isFinite(id)) return;
+      try {
+        await ing.hydratePerson(id);
+      } catch {
+        /* One unreachable person must not fail the batch and cost the other
+           twenty-four an attempt. It stays unsynced and the walk retries it. */
+      }
+    });
 
     const [more] = await sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM core.person WHERE detail_synced_at IS NULL`;
