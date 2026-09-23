@@ -255,6 +255,7 @@ salience
 schizophrenia
 scifi
 scourtroom
+screenshotting
 serviceParam
 sharefixture
 shounen

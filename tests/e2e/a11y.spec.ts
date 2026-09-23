@@ -50,7 +50,7 @@ function report(violations: Awaited<ReturnType<typeof audit>>): string {
 }
 
 test.describe('accessibility — public', () => {
-  for (const path of ['/auth/signin', '/offline']) {
+  for (const path of ['/auth/signin', '/offline', '/explore/title/e2e-fixture-film']) {
     test(`${path} has no axe violations`, async ({ page }) => {
       const violations = await audit(page, path);
       expect(violations, `\n  ${report(violations)}\n`).toEqual([]);
