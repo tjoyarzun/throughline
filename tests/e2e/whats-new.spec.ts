@@ -64,7 +64,22 @@ test.describe('unread release mark', () => {
 
   test('every "take a look" link resolves, not just in the unit test', async ({ page }) => {
     await page.goto('/whats-new');
+
+    /**
+     * Wait for the page, then for a link, before counting either.
+     *
+     * locator.count() answers about the DOM as it is right now and never
+     * waits -- the same flaw that made the Library genre test compare against
+     * a zero. Under load this failed in 310ms with no links found, which
+     * reads as "the feature is broken" and was "I asked too early".
+     *
+     * The URL assertion is here so a real failure still names itself: if the
+     * session were ever lost this lands on /auth/signin, and "no links" would
+     * otherwise be a very confusing way to be told that.
+     */
+    await expect(page).toHaveURL(/\/whats-new/);
     const links = page.getByRole('link', { name: 'Take a look →' });
+    await expect(links.first()).toBeAttached();
     const n = await links.count();
     expect(n).toBeGreaterThan(0);
     for (let i = 0; i < n; i++) {
