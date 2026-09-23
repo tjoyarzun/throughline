@@ -35,14 +35,42 @@ export const MAX_AGE_S: Record<string, number> = {
   refresh_degree: 172_800,
   housekeeping: 172_800,
   refresh_stale: 172_800,
-  hydrate_title: 172_800,
-  hydrate_people: 172_800,
-  hydrate_episodes: 172_800,
-  derive_themes: 172_800,
-  enrich_wikidata: 172_800,
   refresh_availability: 172_800,
-  recompute_similar: 604_800, // weekly by design
+  hydrate_people: 172_800,
 };
+
+/**
+ * Jobs nothing schedules. Measured by their WORK, not by their last run.
+ *
+ * These five used to sit in the map above, and the map's own comment gave the
+ * game away: "roughly 2x its interval" for jobs that have no interval. Traced
+ * through the enqueue sites, what actually triggers them is:
+ *
+ *   hydrate_title      somebody opens a title we do not hold
+ *   hydrate_episodes   somebody tracks a show
+ *   derive_themes      a person, by hand
+ *   enrich_wikidata    a person, by hand
+ *   recompute_similar  a person, by hand
+ *
+ * So their last-run time only ever decays. Two had already tripped when this
+ * was found (derive_themes and hydrate_title, both at 48.2 hours against a
+ * 48-hour bound), enrich_wikidata was hours away, and recompute_similar was
+ * days away. The endpoint was on its way to permanently red for a system
+ * doing exactly what it should -- which is the same failure as an alert that
+ * never fires, arrived at from the opposite direction. Nobody reads either.
+ *
+ * The honest question for work that happens on demand is not "did it run
+ * lately" but "is there work of this kind sitting undone". Nothing queued is
+ * healthy however long it has been. Something queued past a drain window is
+ * broken however recently the kind last succeeded.
+ */
+export const ON_DEMAND_KINDS = [
+  'hydrate_title',
+  'hydrate_episodes',
+  'derive_themes',
+  'enrich_wikidata',
+  'recompute_similar',
+] as const;
 
 /**
  * How long a job may sit before something is actually wrong.
@@ -131,6 +159,23 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
                               AND created_at > now() - interval '24 hours')::int AS failed_24h
       FROM core.job`;
 
+    /**
+     * Queued work per kind, for the on-demand jobs.
+     *
+     * The global oldest/oldest_kind above answers "is the queue moving". This
+     * answers "is THIS kind of work moving", which is what an on-demand job
+     * can be held to: a hydrate_title enqueued when somebody opened a title
+     * and still sitting there two drains later is broken, and the fact that
+     * the kind last succeeded a week ago is not.
+     */
+    const queuedByKind = await sql<{ kind: string; oldest: number | null; n: number }[]>`
+      SELECT kind,
+             extract(epoch FROM now() - min(run_after))::int AS oldest,
+             count(*)::int AS n
+      FROM core.job
+      WHERE status = 'queued'
+      GROUP BY kind`;
+
     const cronRows = await sql<
       {
         kind: string;
@@ -204,8 +249,21 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     for (const c of cronRows) {
       const max = MAX_AGE_S[c.kind];
       if (max && c.age_s !== null && c.age_s > max) problems.push(`${c.kind} stale (${c.age_s}s)`);
+      /* Failures are checked for EVERY kind, scheduled or not. A job that
+         ran and threw is broken whatever triggered it. */
       if (c.consecutive_failures >= 3)
         problems.push(`${c.kind} failing (${c.consecutive_failures})`);
+    }
+
+    /* On-demand kinds: judged on undone work, not on elapsed time. Reuses the
+       same 26-hour line as the global stall check, because it is the same
+       claim -- this survived a drain without being claimed. */
+    const onDemand = new Set<string>(ON_DEMAND_KINDS);
+    for (const q of queuedByKind) {
+      if (!onDemand.has(q.kind)) continue;
+      if ((q.oldest ?? 0) > QUEUE_STALL_S) {
+        problems.push(`${q.kind} not draining: ${q.n} queued, oldest ${q.oldest}s`);
+      }
     }
     // Reported since the beginning and never checked. The spec calls for it
     // (docs/deployment.md), and without it "we have not talked to TMDB in a

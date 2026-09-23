@@ -321,6 +321,16 @@ so interrupting it loses nothing.
 - Manual keyboard and VoiceOver pass on a physical iPhone (AC-32, AC-33). axe covers about a third
   of WCAG and cannot judge focus order.
 - A deliberate rollback drill, exercised once so it is known to work rather than assumed.
+- **`enrich_wikidata` sweeps the whole corpus instead of enriching new titles.** The spec
+  (docs/api.md, cron table) says "SPARQL pull for **new titles since last run**"; what was built
+  pages through every title holding an IMDb id — 4,831 of them — by offset from zero, chaining to
+  the end. It cannot do otherwise: `core.title` has `synced_at` for TMDB and **no marker for
+  Wikidata**, so there is no way to ask which titles still need it. The fix is the shape
+  `hydrate-people` already uses: add the marker, select `WHERE marker IS NULL`, and enqueue on
+  ingest so it becomes trigger-based rather than a sweep somebody remembers to start. Wikidata
+  facts are per-title and near-static (`based_on`, franchise, influence), so a clock was always the
+  wrong instrument. Note this does not change how health judges it — queued-work is the right
+  question whether the trigger is a person or an ingest.
 - **First-load JS is 182 KB, against this project's own 130 KB budget (AC-27).** Measured against
   production on `/auth/signin` — eleven chunks in the initial HTML of a page that is a form with an
   input and a button. Being 40% over on the lightest route suggests something is reaching the
