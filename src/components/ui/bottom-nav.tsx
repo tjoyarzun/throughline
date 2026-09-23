@@ -28,7 +28,7 @@ const TABS = [
   { href: '/me', label: 'Me', icon: me },
 ] as const;
 
-export function BottomNav() {
+export function BottomNav({ unread = false }: { unread?: boolean }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
@@ -48,6 +48,11 @@ export function BottomNav() {
         {TABS.map((tab) => {
           const active = isActive(tab.href);
           const Icon = tab.icon;
+          /* Hidden while the notes are open: middleware marks them read on
+             this very request, so the cookie the server rendered with is one
+             navigation stale and the dot would otherwise sit there accusing
+             you of not having read the page you are reading. */
+          const dot = unread && tab.href === '/me' && pathname !== '/whats-new';
           return (
             <li key={tab.href} className="flex-1">
               <Link
@@ -56,12 +61,33 @@ export function BottomNav() {
                 className="flex h-16 flex-col items-center justify-center gap-1"
                 style={{ color: active ? 'var(--tl-text)' : 'var(--tl-text-dim)' }}
               >
-                <Icon active={active} />
+                <span className="relative">
+                  <Icon active={active} />
+                  {/* The unread mark, on Me only. Positioned on the ICON
+                      rather than beside the label so it reads as a badge
+                      instead of as punctuation. */}
+                  {dot && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-1 -top-0.5 block size-2 rounded-full"
+                      style={{
+                        background: 'var(--tl-accent)',
+                        // A ring in the bar's own color, so the dot stays
+                        // legible where it overlaps the icon's stroke.
+                        boxShadow: '0 0 0 2px var(--tl-bg)',
+                      }}
+                    />
+                  )}
+                </span>
                 <span
                   className="text-[11px] leading-none"
                   style={{ fontWeight: active ? 600 : 400 }}
                 >
                   {tab.label}
+                  {/* A colored dot is invisible to a screen reader and to
+                      anyone who cannot distinguish it (SC 1.4.1). The tab
+                      announces "Me, new" instead. */}
+                  {dot && <span className="sr-only">, new</span>}
                 </span>
               </Link>
             </li>

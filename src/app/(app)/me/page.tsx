@@ -9,6 +9,7 @@ import { DataSection } from '@/components/account/data-section';
 import { adminInvites, adminUsers, isAdmin } from '@/server/repos/admin';
 import Link from 'next/link';
 import { RELEASES } from '@/content/releases';
+import { SEEN_COOKIE, hasUnreadRelease } from '@/lib/whats-new';
 import { ThemeControl } from '@/components/account/theme-control';
 import { THEME_COOKIE, isTheme } from '@/lib/theme';
 import { cookies } from 'next/headers';
@@ -31,7 +32,9 @@ export default async function MePage() {
       })}`
     : '';
 
-  const storedTheme = (await cookies()).get(THEME_COOKIE)?.value;
+  const jar = await cookies();
+  const unread = hasUnreadRelease(jar.get(SEEN_COOKIE)?.value);
+  const storedTheme = jar.get(THEME_COOKIE)?.value;
   const theme = isTheme(storedTheme) ? storedTheme : 'system';
 
   // Two round trips only for an admin. Everyone else pays for one boolean.
@@ -56,7 +59,19 @@ export default async function MePage() {
           style={{ borderColor: 'var(--tl-border)', background: 'var(--tl-surface)' }}
         >
           <span className="flex flex-col">
-            <span className="text-sm">What&rsquo;s new</span>
+            <span className="flex items-center gap-2 text-sm">
+              What&rsquo;s new
+              {unread && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="block size-2 shrink-0 rounded-full"
+                    style={{ background: 'var(--tl-accent)' }}
+                  />
+                  <span className="sr-only">, unread</span>
+                </>
+              )}
+            </span>
             <span className="text-xs" style={{ color: 'var(--tl-text-dim)' }}>
               {LATEST_RELEASE}
             </span>

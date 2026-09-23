@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers';
 import { BottomNav } from '@/components/ui/bottom-nav';
+import { SEEN_COOKIE, hasUnreadRelease } from '@/lib/whats-new';
 
 /**
  * The app shell: bottom navigation and the reading column.
@@ -15,7 +17,13 @@ import { BottomNav } from '@/components/ui/bottom-nav';
  * the last row beneath the home indicator. The insets are zero everywhere
  * else, so the same rule is correct on desktop.
  */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  /* Read in the shell so the mark is on the nav from the first paint, rather
+     than appearing a beat later once a client component has mounted. Every
+     route in this group is force-dynamic already, so a cookie read here costs
+     no cacheability. */
+  const seen = (await cookies()).get(SEEN_COOKIE)?.value;
+
   return (
     <>
       <main
@@ -30,7 +38,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
-      <BottomNav />
+      <BottomNav unread={hasUnreadRelease(seen)} />
     </>
   );
 }

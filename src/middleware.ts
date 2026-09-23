@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { SEEN_COOKIE, latestReleaseDate } from '@/lib/whats-new';
 import { getSessionCookie } from 'better-auth/cookies';
 import { isUngated } from '@/lib/route-access';
 
@@ -82,12 +83,30 @@ export function middleware(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
 
+  const { pathname } = request.nextUrl;
+
   const apply = (res: NextResponse): NextResponse => {
     for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+
+    /**
+     * Opening the notes marks them read, here rather than in the page.
+     *
+     * A server component may not write a cookie during render, so the usual
+     * alternatives are a client component that calls an action on mount --
+     * which does nothing with scripting off -- or a route handler to bounce
+     * through. Middleware already runs on this request and already owns the
+     * response, so it is one line and needs no JavaScript at all.
+     */
+    if (latestReleaseDate && pathname === '/whats-new') {
+      res.cookies.set(SEEN_COOKIE, latestReleaseDate, {
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: 'lax',
+        secure: request.nextUrl.protocol === 'https:',
+      });
+    }
     return res;
   };
-
-  const { pathname } = request.nextUrl;
   const allow = () => apply(NextResponse.next({ request: { headers: requestHeaders } }));
 
   if (isUngated(pathname)) return allow();
