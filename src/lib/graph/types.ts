@@ -56,6 +56,34 @@ export interface NeighborGroup {
   more: number;
 }
 
+/** An edge between two nodes in a neighborhood, for drawing. */
+export interface GraphEdge {
+  /** `${type}:${id}` on both ends, so a renderer can index without re-deriving. */
+  source: string;
+  target: string;
+  predicate: string;
+  label: string;
+  /** Ontology path weight. Lower means a stronger, more specific relationship. */
+  weight: number;
+}
+
+/**
+ * A node, the nodes around it, and every edge among the whole set.
+ *
+ * Distinct from neighbors(), which returns a STAR grouped by predicate and is
+ * what the lists render. A star is also literally all a single hop gives you
+ * here: a title's neighbors are people, concepts and studios, and this
+ * ontology has no direct person-to-person or person-to-concept edge, so the
+ * count of edges among one node's neighbors is exactly zero. Measured, not
+ * assumed. Two hops is what produces a graph with structure in it -- two
+ * actors joined by another film they were both in.
+ */
+export interface Neighborhood {
+  center: GraphNode;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 export interface GraphEngine {
   node(ref: NodeRef): Promise<GraphNode | null>;
   neighbors(ref: NodeRef, opts?: { perGroup?: number; groups?: number }): Promise<NeighborGroup[]>;

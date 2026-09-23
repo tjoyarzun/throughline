@@ -43,8 +43,14 @@ async function load(type: string, slug: string) {
   if (!node) return null;
   // Twelve per group: enough that a constellation has shape, few enough that a
   // person with 400 credits does not render 400 nodes on a public page.
-  const groups = await graphEngine.neighbors({ type: node.type, id: node.id }, { perGroup: 12 });
-  return { node, groups };
+  const [groups, neighborhood] = await Promise.all([
+    graphEngine.neighbors({ type: node.type, id: node.id }, { perGroup: 12 }),
+    // Two hops, for the canvas only. The lists render the one-hop grouping,
+    // which is what this page is ABOUT; the drawing needs structure the second
+    // ring provides.
+    graphEngine.neighborhood({ type: node.type, id: node.id }),
+  ]);
+  return { node, groups, neighborhood };
 }
 
 export async function generateMetadata({
@@ -79,7 +85,7 @@ export default async function ExploreNodePage({
   const { type, slug } = await params;
   const data = await load(type, slug);
   if (!data) notFound();
-  const { node, groups } = data;
+  const { node, groups, neighborhood } = data;
 
   const total = groups.reduce((n, g) => n + g.nodes.length + g.more, 0);
 
@@ -128,7 +134,9 @@ export default async function ExploreNodePage({
 
       {/* The canvas mounts over this region on capable clients. It is given the
           same data the lists below render, so the two can never disagree. */}
-      <ConstellationCanvas center={node} groups={groups} />
+      {neighborhood && (
+        <ConstellationCanvas center={node} nodes={neighborhood.nodes} edges={neighborhood.edges} />
+      )}
 
       <div className="flex flex-col gap-7">
         {groups.map((group) => (

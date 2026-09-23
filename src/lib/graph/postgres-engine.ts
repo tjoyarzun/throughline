@@ -1,7 +1,16 @@
 import postgres from 'postgres';
 import { pooledDatabaseUrl } from '@/server/db/resolve-url';
 import { PATH_RANKING, PREDICATE_SPECS, type Predicate } from '@/lib/ontology/generated';
-import type { GraphEngine, GraphNode, GraphPath, NeighborGroup, NodeRef, PathStep } from './types';
+import type {
+  GraphEdge,
+  Neighborhood,
+  GraphEngine,
+  GraphNode,
+  GraphPath,
+  NeighborGroup,
+  NodeRef,
+  PathStep,
+} from './types';
 
 /**
  * Postgres-backed traversal.
@@ -109,6 +118,111 @@ export class PostgresGraphEngine implements GraphEngine {
     }
     const all = [...groups.values()];
     return opts.groups ? all.slice(0, opts.groups) : all;
+  }
+
+  /**
+   * Two hops out, with every edge among the resulting set.
+   *
+   * One hop is a star and cannot be anything else -- a title's neighbors are
+   * people, concepts and studios, and nothing in the ontology joins those to
+   * each other directly. Measured on Paris, Texas: 40 neighbors, zero edges
+   * between them. Two hops turns that into ~54 nodes and ~262 edges, because
+   * the second ring reconnects the first: two actors meet again at another
+   * film they were both in, and THAT is the structure worth drawing.
+   *
+   * Hubs are excluded from the second ring. Drama has 2,139 connections and
+   * would pull every node into one indistinguishable blob -- the same reason
+   * the path finder bars high-degree nodes from intermediate positions.
+   */
+  async neighborhood(
+    ref: NodeRef,
+    opts: { first?: number; second?: number; hubDegree?: number } = {},
+  ): Promise<Neighborhood | null> {
+    const center = await this.node(ref);
+    if (!center) return null;
+
+    const first = opts.first ?? 24;
+    const second = opts.second ?? 60;
+    const hubDegree = opts.hubDegree ?? 400;
+
+    const rows = await db()<(NodeRow & { hop: number })[]>`
+      WITH l1 AS (
+        SELECT e.object_type AS node_type, e.object_id AS id, e.path_weight
+        FROM sem.edge_bidirectional e
+        WHERE e.subject_type = ${ref.type} AND e.subject_id = ${ref.id}
+        ORDER BY e.path_weight ASC LIMIT ${first}
+      ),
+      l2 AS (
+        SELECT DISTINCT ON (e.object_type, e.object_id)
+               e.object_type AS node_type, e.object_id AS id
+        FROM l1
+        JOIN sem.edge_bidirectional e
+          ON e.subject_type = l1.node_type AND e.subject_id = l1.id
+        JOIN core.node_degree d
+          ON d.node_type = e.object_type AND d.node_id = e.object_id
+        WHERE d.degree < ${hubDegree}
+        ORDER BY e.object_type, e.object_id, e.path_weight ASC
+        LIMIT ${second}
+      ),
+      picked AS (
+        SELECT node_type, id, 1 AS hop FROM l1
+        UNION
+        SELECT node_type, id, 2 AS hop FROM l2
+      )
+      SELECT n.*, d.degree, min(p.hop)::int AS hop
+      FROM picked p
+      JOIN sem.node n ON n.node_type = p.node_type AND n.id = p.id
+      LEFT JOIN core.node_degree d ON d.node_type = n.node_type AND d.node_id = n.id
+      WHERE NOT (n.node_type = ${ref.type} AND n.id = ${ref.id})
+      GROUP BY n.node_type, n.id, n.slug, n.label, n.sublabel, n.image_path,
+               n.popularity, d.degree`;
+
+    const nodes = rows.map(toNode);
+    const keys = new Set([`${center.type}:${center.id}`, ...nodes.map((n) => `${n.type}:${n.id}`)]);
+    /* Filtered by id alone rather than by (type, id) pairs: a row-value IN is
+       not expressible here, and a concatenated key would be unindexable. Ids
+       are UUIDv7 and unique across every entity table, so this cannot collide;
+       membership in the set is re-checked below anyway. */
+    const ids = [center.id, ...nodes.map((n) => n.id)];
+
+    const edgeRows = await db()<
+      {
+        subject_type: string;
+        subject_id: string;
+        object_type: string;
+        object_id: string;
+        predicate: string;
+        predicate_label: string;
+        path_weight: number;
+      }[]
+    >`
+      SELECT e.subject_type, e.subject_id, e.object_type, e.object_id,
+             e.canonical_predicate AS predicate, e.predicate_label, e.path_weight
+      FROM sem.edge_bidirectional e
+      WHERE e.subject_id = ANY(${ids}) AND e.object_id = ANY(${ids})`;
+
+    /* edge_bidirectional carries both directions, so an undirected renderer
+       would draw every relationship twice, at double opacity. Collapse on the
+       unordered pair plus the canonical predicate. */
+    const seen = new Set<string>();
+    const edges: GraphEdge[] = [];
+    for (const r of edgeRows) {
+      const a = `${r.subject_type}:${r.subject_id}`;
+      const b = `${r.object_type}:${r.object_id}`;
+      if (a === b || !keys.has(a) || !keys.has(b)) continue;
+      const key = [a, b].sort().join('|') + '|' + r.predicate;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push({
+        source: a,
+        target: b,
+        predicate: r.predicate,
+        label: r.predicate_label,
+        weight: Number(r.path_weight) || 1,
+      });
+    }
+
+    return { center, nodes, edges };
   }
 
   /**
