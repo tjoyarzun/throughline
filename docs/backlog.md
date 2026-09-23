@@ -258,6 +258,22 @@ before it has a shape to look at.
 | 1217468989312591 | Instagram-style navigation     | The current five-tab bar is a deliberate decision — five tabs over four-plus-FAB, because the create action here is always search-then-add, and everything primary sits in the bottom third for one-handed use. Worth doing if the current nav is actually failing in use, but it should start from what is wrong with it rather than from another app's shape.                                                                                                            |
 | 1217468989312583 | International films and people | **Half done.** Person detail coverage is finished: the backfill completed 2026-09-23 at **59,026 of 59,027 (100%)**, up from 1.8% — weeks of queue-walk throughput collapsed into one run, because the walk was capped by Hobby's single daily drain window rather than by the work. What remains is the other half: **seed more Portuguese/Brazilian titles** (26 in the corpus), a script run, cheap. Neither half is "add international support" — that already worked. |
 
+## Decided against: an iOS splash screen
+
+Raised 2026-09-23 because a cold launch showed black on mobile, and **declined after the cause was
+fixed instead.** Do not re-propose it.
+
+The black screen was the symptom; the cause was the service worker, which was network-first for
+navigations and so reached for its page cache only when `fetch` threw — meaning every launch
+blocked on a server round trip (measured: 1.0–1.9s cold, 0.36–0.7s warm) while the cache sat
+unused except offline. Navigations are stale-while-revalidate now.
+
+A splash screen would not have made anything faster; it would have made the wait look deliberate.
+It is also fragile: iOS matches `apple-touch-startup-image` by exact per-device media query, and a
+size you miss falls back to the blank screen anyway, for ten to fourteen generated PNGs of upkeep.
+
+If launch ever feels slow again, the next lever is the bundle line above — not a splash screen.
+
 ## Known limit: search covers only people in the corpus
 
 A person enters `core` through a **credit**, so someone with no credits on any title we hold has an
@@ -305,6 +321,10 @@ so interrupting it loses nothing.
 - Manual keyboard and VoiceOver pass on a physical iPhone (AC-32, AC-33). axe covers about a third
   of WCAG and cannot judge focus order.
 - A deliberate rollback drill, exercised once so it is known to work rather than assumed.
+- **First-load JS is 182 KB, against this project's own 130 KB budget (AC-27).** Measured against
+  production on `/auth/signin` — eleven chunks in the initial HTML of a page that is a form with an
+  input and a button. Being 40% over on the lightest route suggests something is reaching the
+  shared chunk that should not be. An investigation before a fix: find out what is in there first.
 - **Confirm the offline/cached paint on a real iPhone.** The worker now serves navigations
   stale-while-revalidate, and the test proving a repeat visit paints WITHOUT the server is
   Chromium-only: Playwright's WebKit refuses a navigation whose request is aborted while a worker
