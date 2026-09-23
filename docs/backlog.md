@@ -119,7 +119,43 @@ Small, independent, good filler between the larger items.
 | 1217468989312581 | Share a card image, not a link      | **Shipped, beside the link rather than replacing it** — a link unfurls richly AND stays tappable, so it stays the default. The PNG is prefetched with the share row so the second tap calls `navigator.share` synchronously; fetching at tap time is an await before `share()`, which kills the sheet on iOS.                                                                                                              |
 | 1217468989312580 | Top-of-screen blur bug              | **Needs a repro.** The status-bar/safe-area issue was fixed in Phase 6; this is either a regression or a different thing, and which one changes the fix. Screenshot plus route and device.                                                                                                                                                                                                                                 |
 
-### 8. Larger, or not yet specified
+### 8. The constellation, on a phone
+
+Asana: not yet filed · Ontology & Data Model
+
+Added 2026-09-23, after the constellation became the DEFAULT view of `/universe` rather than one
+card among three. That change raised the bar for it: a thing you have to seek out can be
+desktop-shaped, and a thing that opens on every visit cannot. Three defects, in the order they
+cost you something.
+
+**The loading skeleton draws the old page.** `(app)/universe/loading.tsx` still renders three nav
+cards over an expanded ontology panel with eight predicate rows — the layout that was replaced.
+What actually arrives is a header, a canvas, two cards, the neighbor lists and a COLLAPSED
+footer, so every visit shows a promise of one shape and then snaps to another. That is a
+straightforward CLS regression against AC-27 (< 0.05) on the app's most-visited portfolio
+surface, and it is the cheapest of the three to fix.
+
+**A tap goes straight through.** The canvas resolves labels on `onMouseMove` and navigates on
+`onClick` (`constellation-canvas.tsx`) — which means on a touch screen there is no hover, so the
+first contact with a node is a navigation. You cannot find out what something is without
+committing to leaving the page. The fix is a two-stage touch interaction: first tap selects and
+labels, second tap follows — with finger-sized hit targets, which is its own problem, because the
+node radii are 3.5–11.5px and 44pt is the floor everywhere else in this app. That gap between the
+DRAWN size and the TOUCHABLE size is the actual work; a hit-test radius independent of the render
+radius is probably the shape of it.
+
+**No pan or zoom.** The layout is fitted to the frame once and is then fixed, so a dense
+neighborhood — Nolan is 80 nodes and 329 edges — is legible only at whatever scale happens to fit.
+Pinch-to-zoom and drag-to-pan, touch first, on a canvas that already owns its own transform. Two
+things to get right: the page must not scroll while a gesture is on the canvas
+(`touch-action: none` on the element, not the document), and the existing `prefers-reduced-motion`
+respect must survive — a gesture is direct manipulation, not an animation, so it should stay, but
+any inertia or easing added along with it should not.
+
+Sequencing: the skeleton is minutes and should not wait for the rest. The tap and the gesture work
+share a hit-test and a transform, so they are one piece of work rather than two.
+
+### 9. Larger, or not yet specified
 
 | Asana            | Item                           | Why it sits here                                                                                                                                                                                                                                                                                                                                                |
 | ---------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
