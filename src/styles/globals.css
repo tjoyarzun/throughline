@@ -128,3 +128,22 @@ h3 {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Disclosure chevrons.
+ *
+ * A <summary> with display:flex loses its native marker, so every collapsible
+ * in the app draws its own and rotates it here rather than in five places.
+ * list-none removes the marker WebKit still draws otherwise.
+ */
+summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary > span:first-child > svg {
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+details[open] > summary > span:first-child > svg {
+  transform: rotate(90deg);
+}

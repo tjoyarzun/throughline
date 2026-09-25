@@ -29,6 +29,66 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * A collapsible admin section.
+ *
+ * A real <details>, the same device the Universe hub uses for its ontology
+ * panel: it works with scripting off, announces its own open/closed state,
+ * and needs no client component to hold a boolean. The heading stays an h3
+ * INSIDE the summary so the document outline is unchanged -- collapsing a
+ * section should not remove it from the structure a screen reader walks.
+ *
+ * Not persisted. Only the owner ever sees this screen, and a cookie to
+ * remember which of three sections were open is more machinery than the
+ * problem deserves.
+ */
+function Collapsible({
+  title,
+  count,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  count?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="flex flex-col gap-3">
+      {/* An explicit chevron, because display:flex on a summary drops the
+          native disclosure marker -- and without one these read as plain
+          headings with no hint that they open. The affordance IS the
+          feature here; a collapsed section nobody knows to tap is worse
+          than a long one. */}
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="inline-block shrink-0 transition-transform"
+          style={{ color: 'var(--tl-text-dim)', fontSize: '0.7rem' }}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 1.5 6.5 5 3 8.5" />
+          </svg>
+        </span>
+        <SectionHeading>
+          {title}
+          {count !== undefined && ` · ${count}`}
+        </SectionHeading>
+      </summary>
+      <div className="flex flex-col gap-3 pt-3">{children}</div>
+    </details>
+  );
+}
+
 function Panel({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -379,9 +439,11 @@ export function AdminPanel({
   origin: string;
 }) {
   return (
-    <section className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <SectionHeading>People · {users.length}</SectionHeading>
+    <section className="flex flex-col gap-4">
+      {/* People is the long one and the reason this was filed, so it is
+          collapsed. "Invite someone" is the only thing here anybody comes to
+          DO rather than read, so it stays open. */}
+      <Collapsible title="People" count={users.length}>
         <Panel>
           <ul className="contents">
             {users.map((u) => (
@@ -389,17 +451,15 @@ export function AdminPanel({
             ))}
           </ul>
         </Panel>
-      </div>
+      </Collapsible>
 
-      <div className="flex flex-col gap-3">
-        <SectionHeading>Invite someone</SectionHeading>
+      <Collapsible title="Invite someone" defaultOpen>
         <InviteCreator origin={origin} />
-      </div>
+      </Collapsible>
 
-      <div className="flex flex-col gap-3">
-        <SectionHeading>Invites</SectionHeading>
+      <Collapsible title="Invites" count={invites.length}>
         <InviteList invites={invites} />
-      </div>
+      </Collapsible>
     </section>
   );
 }

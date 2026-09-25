@@ -309,6 +309,8 @@ export async function listLibrary(
     region?: string;
     /** One genre label, exactly as it appears in sem.title.genres. */
     genre?: string;
+    /** 'movie' or 'show'. The discriminator ADR 0004 put on core.title. */
+    kind?: 'movie' | 'show';
   } = {},
 ): Promise<LibraryItem[]> {
   const sort = opts.sort ?? 'added';
@@ -346,6 +348,7 @@ export async function listLibrary(
           ${opts.status ? sql`AND ut.status = ${opts.status}` : sql``}
           ${opts.favoritesOnly ? sql`AND ut.is_favorite` : sql``}
           ${opts.genre ? sql`AND ${opts.genre} = ANY(t.genres)` : sql``}
+          ${opts.kind ? sql`AND t.kind = ${opts.kind}` : sql``}
         ORDER BY ${order}
         LIMIT ${limit}`,
     );
@@ -424,6 +427,38 @@ export async function libraryGenres(
           ${opts.favoritesOnly ? sql`AND ut.is_favorite` : sql``}
         GROUP BY g
         ORDER BY n DESC, g`,
+    ),
+  );
+}
+
+/**
+ * How many movies and how many shows are in one segment.
+ *
+ * Same rule as libraryGenres: counted from the reader's own rows so the
+ * control can show what it would give you, and a filter with nothing behind
+ * it is never offered. A library of only films should not carry a Shows chip.
+ *
+ * This is the first feature that spends the unified `title` table (ADR 0004).
+ * Movies and shows share one table with a `kind` discriminator precisely so
+ * that telling them apart is a WHERE clause rather than a second query.
+ */
+export async function libraryKinds(
+  accountId: string,
+  opts: { status?: Status; favoritesOnly?: boolean; genre?: string } = {},
+): Promise<{ kind: 'movie' | 'show'; n: number }[]> {
+  return withUser(accountId, async (tx) =>
+    rows<{ kind: 'movie' | 'show'; n: number }>(
+      tx,
+      sql`
+        SELECT t.kind, count(*)::int AS n
+        FROM sem.user_title ut
+        JOIN sem.title t ON t.id = ut.title_id
+        WHERE ut.account_id = ${accountId}
+          ${opts.status ? sql`AND ut.status = ${opts.status}` : sql``}
+          ${opts.favoritesOnly ? sql`AND ut.is_favorite` : sql``}
+          ${opts.genre ? sql`AND ${opts.genre} = ANY(t.genres)` : sql``}
+        GROUP BY t.kind
+        ORDER BY n DESC`,
     ),
   );
 }

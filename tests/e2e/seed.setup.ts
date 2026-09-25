@@ -122,20 +122,36 @@ setup('seed an account, a title and a share', async () => {
 
     /* Deliberately uneven: Drama on three, Comedy on two, Horror on one, so a
        test can assert that filtering NARROWS rather than merely re-renders. */
-    const shelf: { slug: string; title: string; genres: string[] }[] = [
-      { slug: 'e2e-shelf-1', title: 'Fixture One', genres: ['Fixture Drama'] },
-      { slug: 'e2e-shelf-2', title: 'Fixture Two', genres: ['Fixture Drama', 'Fixture Comedy'] },
-      { slug: 'e2e-shelf-3', title: 'Fixture Three', genres: ['Fixture Drama'] },
-      { slug: 'e2e-shelf-4', title: 'Fixture Four', genres: ['Fixture Comedy'] },
-      { slug: 'e2e-shelf-5', title: 'Fixture Five', genres: ['Fixture Horror'] },
+    /* Two of the five are SHOWS. Without a mix the Movies/Shows control
+       renders at all only by accident and cannot be observed to narrow
+       anything -- the same gap that let the genre assertions pass vacuously
+       before a second genre existed. */
+    const shelf: { slug: string; title: string; genres: string[]; kind: 'movie' | 'show' }[] = [
+      { slug: 'e2e-shelf-1', title: 'Fixture One', genres: ['Fixture Drama'], kind: 'movie' },
+      {
+        slug: 'e2e-shelf-2',
+        title: 'Fixture Two',
+        genres: ['Fixture Drama', 'Fixture Comedy'],
+        kind: 'movie',
+      },
+      { slug: 'e2e-shelf-3', title: 'Fixture Three', genres: ['Fixture Drama'], kind: 'movie' },
+      { slug: 'e2e-shelf-4', title: 'Fixture Four', genres: ['Fixture Comedy'], kind: 'show' },
+      { slug: 'e2e-shelf-5', title: 'Fixture Five', genres: ['Fixture Horror'], kind: 'show' },
     ];
     for (const item of shelf) {
       const [row] = await sql<{ id: string }[]>`
         INSERT INTO core.title (slug, kind, title, sort_title, release_date, runtime_minutes,
                                 overview, original_language)
-        VALUES (${item.slug}, 'movie', ${item.title}, ${item.title.toLowerCase()},
+        VALUES (${item.slug}, ${item.kind}, ${item.title}, ${item.title.toLowerCase()},
                 '2021-01-01', 90, 'A shelf fixture.', 'en')
-        ON CONFLICT (slug) DO UPDATE SET title = excluded.title
+        /* kind is in the DO UPDATE, and it has to be. A conflict clause that
+           only refreshes the title silently keeps every other column at
+           whatever a previous run left, so changing two of these fixtures
+           from movie to show did nothing at all on a database that had seen
+           the old seed, and the control under test never rendered. Any column
+           a fixture might change belongs here. */
+        ON CONFLICT (slug) DO UPDATE
+          SET title = excluded.title, kind = excluded.kind
         RETURNING id`;
       for (const g of item.genres) {
         await sql`

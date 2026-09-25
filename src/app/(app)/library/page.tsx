@@ -4,6 +4,7 @@ import { getAccountId } from '@/server/auth/session';
 import {
   libraryCounts,
   libraryGenres,
+  libraryKinds,
   listLibrary,
   accountRegion,
   type LibrarySort,
@@ -45,7 +46,7 @@ const EMPTY: Record<string, { head: string; body: string }> = {
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ list?: string; sort?: string; genre?: string }>;
+  searchParams: Promise<{ list?: string; sort?: string; genre?: string; kind?: string }>;
 }) {
   const accountId = await getAccountId();
   if (!accountId) redirect('/auth/signin?next=/library');
@@ -57,9 +58,10 @@ export default async function LibraryPage({
 
   const scope = favoritesOnly ? { favoritesOnly: true as const } : { status: segment as Status };
 
-  const [counts, genres, region] = await Promise.all([
+  const [counts, genres, kinds, region] = await Promise.all([
     libraryCounts(accountId),
     libraryGenres(accountId, scope),
+    libraryKinds(accountId, scope),
     accountRegion(accountId),
   ]);
 
@@ -74,19 +76,27 @@ export default async function LibraryPage({
      describing it have to agree. */
   const genre = genres.some((g) => g.genre === sp.genre) ? sp.genre : undefined;
 
+  /* Validated the same way and for the same reason as the genre: a kind the
+     chips do not offer would render an empty grid under an "All" chip
+     claiming nothing is filtered. */
+  const kind = kinds.some((k) => k.kind === sp.kind) ? (sp.kind as 'movie' | 'show') : undefined;
+
   const items = await listLibrary(accountId, {
     ...scope,
     sort,
     ...(genre ? { genre } : {}),
+    ...(kind ? { kind } : {}),
     region,
   });
 
-  const href = (next: { sort?: LibrarySort; genre?: string | null }) => {
+  const href = (next: { sort?: LibrarySort; genre?: string | null; kind?: string | null }) => {
     const p = new URLSearchParams({ list: segment });
     const s2 = next.sort ?? sort;
     if (s2 !== 'added') p.set('sort', s2);
     const g = next.genre === null ? undefined : (next.genre ?? genre);
     if (g) p.set('genre', g);
+    const k = next.kind === null ? undefined : (next.kind ?? kind);
+    if (k) p.set('kind', k);
     return `/library?${p.toString()}`;
   };
 
@@ -103,9 +113,9 @@ export default async function LibraryPage({
           return (
             <Link
               key={s.key}
-              /* Genre is deliberately dropped when changing segment: the
-                 chips are per-segment, so carrying "Anime" from Watched into
-                 Watchlist would silently filter to nothing. */
+              /* Genre AND kind are dropped when changing segment: both chip
+                 sets are per-segment, so carrying "Anime" or "Shows" from
+                 Watched into Watchlist would silently filter to nothing. */
               href={`/library?list=${s.key}${sort === 'added' ? '' : `&sort=${sort}`}`}
               aria-current={active ? 'page' : undefined}
               className="min-h-11 shrink-0 rounded-full px-4 py-2 text-sm"
@@ -145,18 +155,57 @@ export default async function LibraryPage({
         </div>
       )}
 
-      {genres.length > 1 && (
-        <nav aria-label="Filter by genre" className="flex gap-1 overflow-x-auto pb-1">
-          <GenreChip href={href({ genre: null })} label="All genres" active={!genre} />
-          {genres.map((g) => (
-            <GenreChip
-              key={g.genre}
-              href={href({ genre: g.genre === genre ? null : g.genre })}
-              label={g.genre}
-              count={g.n}
-              active={g.genre === genre}
+      {/* Movies/Shows sits in the SAME row as the genres, not a row of its
+          own. They are both "narrow what I am looking at", and two stacked
+          chip rows would read as two unrelated controls -- which is how a
+          filter bar becomes a wall. Kind first because it is the coarser cut.
+          Rendered only when the library actually holds both. */}
+      {(kinds.length > 1 || genres.length > 1) && (
+        <nav aria-label="Filter the library" className="flex gap-1 overflow-x-auto pb-1">
+          {/* Two GROUPS, not one flat list. Both are "narrow what I am looking
+              at", but they are different questions, and aria-current means
+              "the current item in a set" -- two of them loose in one nav
+              claims two current items in one set. A labeled group each keeps
+              the row visually single and semantically honest. */}
+          {kinds.length > 1 && (
+            <div role="group" aria-label="Movies or shows" className="flex gap-1">
+              <GenreChip href={href({ kind: null })} label="All" active={!kind} />
+              {kinds.map((k) => (
+                <GenreChip
+                  key={k.kind}
+                  href={href({ kind: k.kind === kind ? null : k.kind })}
+                  label={k.kind === 'movie' ? 'Movies' : 'Shows'}
+                  count={k.n}
+                  active={k.kind === kind}
+                />
+              ))}
+            </div>
+          )}
+
+          {kinds.length > 1 && genres.length > 1 && (
+            /* A hairline between the groups, so the row reads as two controls
+               rather than one long undifferentiated list. */
+            <span
+              aria-hidden="true"
+              className="mx-1 w-px shrink-0 self-stretch"
+              style={{ background: 'var(--tl-border)' }}
             />
-          ))}
+          )}
+
+          {genres.length > 1 && (
+            <div role="group" aria-label="Genre" className="flex gap-1">
+              <GenreChip href={href({ genre: null })} label="All genres" active={!genre} />
+              {genres.map((g) => (
+                <GenreChip
+                  key={g.genre}
+                  href={href({ genre: g.genre === genre ? null : g.genre })}
+                  label={g.genre}
+                  count={g.n}
+                  active={g.genre === genre}
+                />
+              ))}
+            </div>
+          )}
         </nav>
       )}
 
