@@ -79,45 +79,72 @@ try {
   console.log(`posters  : ${before!.total} total, ${before!.done} already colored`);
   console.log(`remaining: ${before!.total - before!.done}\n`);
 
-  let processed = 0;
-  let missed = 0;
+  let colored = 0;
+  let noHue = 0;
+  let errors = 0;
+  /**
+   * Every id this run has already tried.
+   *
+   * Without it the loop never ends. A poster with no hue is not written --
+   * null is the right answer, and the surfaces fall back to gold -- so it
+   * still matches `accent_color IS NULL` on the next round and is selected
+   * again, forever. Against production that showed up as "41,400 this run"
+   * over a corpus of 4,866, re-fetching the same few hundred images from TMDB
+   * until somebody noticed. The writes were all fine; the loop was not.
+   *
+   * In memory rather than in a column: a sentinel would need a migration and
+   * a value that means "checked, nothing there", and retrying a few hundred
+   * images on the next run is cheaper than owning that forever.
+   */
+  const tried = new Set<string>();
 
   for (;;) {
-    if (processed >= CAP) break;
+    if (tried.size >= CAP) break;
     const rows = await sql<{ id: string; poster_path: string }[]>`
       SELECT id, poster_path FROM core.title
       WHERE poster_path IS NOT NULL AND accent_color IS NULL
+        ${tried.size > 0 ? sql`AND NOT (id = ANY(${[...tried]}::uuid[]))` : sql``}
       ORDER BY popularity DESC NULLS LAST
-      LIMIT ${Math.min(ROUND, CAP - processed)}`;
+      LIMIT ${Math.min(ROUND, CAP - tried.size)}`;
     if (rows.length === 0) break;
+    for (const r of rows) tried.add(r.id);
 
     await mapPool(rows, CONCURRENCY, async (r) => {
       try {
         const hex = await accentFor(r.poster_path);
         if (!hex) {
           /* A black-and-white poster genuinely has no accent. Leaving it null
-             means the surfaces fall back to gold, which is the right answer
-             -- and it means the next run retries it, which is wrong but
-             cheap, and better than writing a gray that renders as a smear. */
-          missed++;
+             means the surfaces fall back to gold, which is the right answer.
+             It is counted, not written, and `tried` keeps it out of the next
+             round. */
+          noHue++;
           return;
         }
         await sql`UPDATE core.title SET accent_color = ${hex} WHERE id = ${r.id}`;
-      } catch {
-        missed++;
+        colored++;
+      } catch (e) {
+        /* An error is NOT the same as no hue, and reporting them together is
+           how a mass failure would look like a corpus of monochrome posters.
+           The first few are printed so a real problem is visible. */
+        errors++;
+        if (errors <= 5) console.warn(`\n  ${r.id}: ${e instanceof Error ? e.message : e}`);
       }
     });
 
-    processed += rows.length;
     process.stdout.write(
-      `\r${bar(before!.done + processed, before!.total)} ${processed} this run · ${missed} without a hue   `,
+      `\r${bar(before!.done + colored, before!.total)} ` +
+        `${colored} colored · ${noHue} without a hue · ${errors} failed   `,
     );
   }
 
   const [after] = await sql<{ done: number; total: number }[]>`
     SELECT count(accent_color)::int AS done, count(*)::int AS total
     FROM core.title WHERE poster_path IS NOT NULL`;
-  console.log(`\n\ndone. ${after!.done} of ${after!.total} colored`);
+  console.log(
+    `\n\ndone. ${after!.done} of ${after!.total} colored` +
+      `${noHue > 0 ? ` · ${noHue} posters carry no hue` : ''}` +
+      `${errors > 0 ? ` · ${errors} FAILED — rerun to retry them` : ''}`,
+  );
 } finally {
   await sql.end();
 }
