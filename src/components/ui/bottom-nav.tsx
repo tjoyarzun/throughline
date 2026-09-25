@@ -35,9 +35,28 @@ export function BottomNav({ unread = false }: { unread?: boolean }) {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur"
+      /**
+       * NO backdrop-filter, deliberately.
+       *
+       * It was blur(8px) behind a 92%-opaque bar, which is to say invisible:
+       * rendered side by side at 3x, with and without, the two are identical.
+       * What it was not free of was cost. A fixed element with a
+       * backdrop-filter promotes the page behind it to a composited layer so
+       * it can be sampled, and on real iOS that layer is rasterized at
+       * reduced resolution and scaled back up -- which is smeared text,
+       * reported from a home-screen install as "top of screen blur".
+       *
+       * It did not reproduce in Playwright's WebKit at 3x, scrolled, which is
+       * consistent: this is a device GPU behavior rather than a layout one.
+       * A scan of the whole page found this to be the ONLY composited layer
+       * in the app, so it is the only candidate that fits.
+       *
+       * Opaque rather than translucent now. On a near-black ground nobody can
+       * tell, and the bar no longer asks the compositor for anything.
+       */
+      className="fixed inset-x-0 bottom-0 z-40 border-t"
       style={{
-        background: 'color-mix(in srgb, var(--tl-bg) 92%, transparent)',
+        background: 'var(--tl-bg)',
         borderColor: 'var(--tl-border)',
         // The home indicator sits in this strip on a modern iPhone. Without
         // it the last row of tabs is half-covered and hard to hit.
