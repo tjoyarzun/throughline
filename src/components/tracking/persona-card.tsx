@@ -36,9 +36,11 @@ export function PersonaCard() {
              something you are about to send, not page content -- at the full
              column width it was 358px on a phone and 768px on a desktop,
              which reads as the subject of the page rather than as an object
-             on it. Small enough to be legible at a glance, large enough that
-             the headline is readable before you commit to sharing it. */
-          maxWidth: '18rem',
+             on it. 13rem is about the size of a poster in the grids
+             elsewhere, which is the right register for a thing you tap to
+             send -- and the headline still carries at that size, which is
+             the floor. */
+          maxWidth: '13rem',
           aspectRatio: '1 / 1',
           borderRadius: 12,
           border: '1px solid var(--tl-border)',
