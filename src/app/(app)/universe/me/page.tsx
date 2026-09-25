@@ -118,7 +118,7 @@ async function PersonaSection({ accountId }: { accountId: string }) {
         {p.subhead ? ` — ${p.subhead}` : ''}. Nothing on it is generated; every number has a query
         behind it.
       </p>
-      <PersonaCard />
+      <PersonaCard accent={p.accent} />
     </section>
   );
 }

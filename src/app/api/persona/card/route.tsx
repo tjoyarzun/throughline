@@ -56,8 +56,21 @@ async function font(file: string): Promise<Buffer> {
 
 const BG = '#0B0C0E';
 const GOLD = '#E8C77A';
-const DIM = '#9AA0A8';
-const FAINT = '#61666E';
+
+/**
+ * Mix a color toward the page background.
+ *
+ * Satori supports linear-gradient, but not color-mix or any relative color
+ * syntax, so the stops have to be computed here. `t` is how far toward
+ * near-black: 0 is the accent at full strength, 1 is the page.
+ */
+function toward(hex: string, t: number): string {
+  const h = hex.replace('#', '');
+  const to = (i: number) => parseInt(h.slice(i * 2, i * 2 + 2), 16);
+  const bg = [0x0b, 0x0c, 0x0e];
+  const out = [0, 1, 2].map((i) => Math.round(to(i) * (1 - t) + bg[i]! * t));
+  return `rgb(${out.join(',')})`;
+}
 
 export async function GET(): Promise<Response> {
   const accountId = await getAccountId();
@@ -71,6 +84,13 @@ export async function GET(): Promise<Response> {
   ]);
   const who = session?.user.name?.trim() || null;
 
+  /* The accent comes from the poster of the thing they rated highest -- its
+     own most chromatic region, extracted once and stored on the title. Gold
+     is the fallback for a library with nothing rated and for a black-and-white
+     poster that genuinely has no hue. */
+  const accent = p.accent ?? GOLD;
+  const poster = p.posterPath ? `https://image.tmdb.org/t/p/w185${p.posterPath}` : null;
+
   const body = (
     <div
       style={{
@@ -79,42 +99,105 @@ export async function GET(): Promise<Response> {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        background: BG,
+        /* A field of color, not a photograph. The unfurl card learned this
+           the expensive way: a 1200x630 PNG washed with a backdrop came out
+           at 958KB, near the size where iMessage stops rendering previews.
+           A gradient of flat color costs almost nothing in PNG, and it is
+           what carries the look anyway -- the artwork sits ON the color
+           rather than being it.
+
+           The poster is the only photographic region and it is therefore the
+           whole of the file size: at 268x402 this card weighed 345KB, past
+           the 300KB the share test holds it to. 204x306 is the same
+           composition for 40% fewer photographic pixels. */
+        backgroundImage: `linear-gradient(160deg, ${toward(accent, 0.45)} 0%, ${toward(
+          accent,
+          0.82,
+        )} 52%, ${BG} 100%)`,
+        backgroundColor: BG,
         padding: 84,
       }}
     >
-      {/* Square, not 1200x630. This one is posted rather than unfurled, and
-          every surface people post to crops a landscape card. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', fontSize: 26, color: FAINT, letterSpacing: 4 }}>
-          THROUGHLINE
-        </div>
-        {who && <div style={{ display: 'flex', fontSize: 34, color: DIM }}>{who}</div>}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div
           style={{
             display: 'flex',
-            fontFamily: 'Instrument Serif',
-            fontSize: p.headline.length > 22 ? 92 : 120,
-            color: '#ECEDEF',
-            lineHeight: 1.0,
+            fontSize: 26,
+            color: 'rgba(236,237,239,0.62)',
+            letterSpacing: 4,
           }}
         >
-          {p.headline}
+          THROUGHLINE
         </div>
-        {p.subhead && <div style={{ display: 'flex', fontSize: 36, color: GOLD }}>{p.subhead}</div>}
+        {who && (
+          <div style={{ display: 'flex', fontSize: 34, color: 'rgba(236,237,239,0.86)' }}>
+            {who}
+          </div>
+        )}
+      </div>
+
+      {/* The art and the claim, side by side -- the Apple Music arrangement,
+          where the cover anchors the color and the words sit beside it. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 40 }}>
+        {poster && (
+          /* Satori renders this to a PNG; next/image and alt text are for a
+             DOM that will never exist. The card's own accessible description
+             lives on the <img> that previews it in the page. */
+          /* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */
+          <img
+            src={poster}
+            width={204}
+            height={306}
+            style={{
+              borderRadius: 14,
+              /* A hairline inside the edge, the same device the poster grids
+                 use, so artwork reads as artwork rather than as a hole. */
+              border: '1px solid rgba(255,255,255,0.14)',
+              objectFit: 'cover',
+            }}
+          />
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              fontFamily: 'Instrument Serif',
+              fontSize: p.headline.length > 22 ? 70 : 90,
+              color: '#FFFFFF',
+              lineHeight: 1.0,
+            }}
+          >
+            {p.headline}
+          </div>
+          {p.subhead && (
+            <div style={{ display: 'flex', fontSize: 30, color: 'rgba(255,255,255,0.74)' }}>
+              {p.subhead}
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* A hairline, the same device the app uses to separate registers. */}
-        <div style={{ display: 'flex', width: '100%', height: 1, background: '#2A2E34' }} />
+        <div
+          style={{
+            display: 'flex',
+            width: '100%',
+            height: 1,
+            background: 'rgba(255,255,255,0.16)',
+          }}
+        />
         <div style={{ display: 'flex', gap: 56 }}>
           {p.lines.map((l) => (
             <div key={l.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', fontSize: 44, color: '#ECEDEF' }}>{l.value}</div>
-              <div style={{ display: 'flex', fontSize: 22, color: FAINT, letterSpacing: 2 }}>
+              <div style={{ display: 'flex', fontSize: 44, color: '#FFFFFF' }}>{l.value}</div>
+              <div
+                style={{
+                  display: 'flex',
+                  fontSize: 22,
+                  color: 'rgba(255,255,255,0.55)',
+                  letterSpacing: 2,
+                }}
+              >
                 {l.label.toUpperCase()}
               </div>
             </div>

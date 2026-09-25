@@ -16,23 +16,35 @@ import { useState } from 'react';
  * for somebody's taste and there should not be one. The bytes go to the share
  * sheet and no row is written anywhere.
  */
-export function PersonaCard() {
+export function PersonaCard({ accent }: { accent: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  /* The same color the card is built from, spilling out behind it. Apple
+     Music's trick: the artwork is not framed, it sits in its own light. A
+     radial glow rather than a filled panel, so it fades into the page instead
+     of drawing a second box around a box. */
+  const glow = accent
+    ? `radial-gradient(60% 60% at 50% 45%, ${accent}38 0%, ${accent}12 45%, transparent 72%)`
+    : undefined;
+
   return (
     <div className="flex flex-col gap-3">
-      {/* eslint-disable-next-line @next/next/no-img-element -- rendered per
+      {/* w-fit, so the glow centers on the CARD. As a full-width block the
+          gradient centered on the column instead and the light fell to the
+          right of the thing it was supposed to be coming from. */}
+      <div className="-m-4 flex w-fit p-4" style={{ backgroundImage: glow, borderRadius: 24 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- rendered per
           request by our own route; the optimizer would cache a private image */}
-      <img
-        src="/api/persona/card"
-        alt="A summary card of your viewing: the strongest thread through what you have watched, with counts."
-        width={1080}
-        height={1080}
-        className="w-full"
-        style={{
-          /* Capped, and deliberately not full-bleed. This is a PREVIEW of
+        <img
+          src="/api/persona/card"
+          alt="A summary card of your viewing: the strongest thread through what you have watched, with counts."
+          width={1080}
+          height={1080}
+          className="w-full"
+          style={{
+            /* Capped, and deliberately not full-bleed. This is a PREVIEW of
              something you are about to send, not page content -- at the full
              column width it was 358px on a phone and 768px on a desktop,
              which reads as the subject of the page rather than as an object
@@ -40,13 +52,14 @@ export function PersonaCard() {
              elsewhere, which is the right register for a thing you tap to
              send -- and the headline still carries at that size, which is
              the floor. */
-          maxWidth: '13rem',
-          aspectRatio: '1 / 1',
-          borderRadius: 12,
-          border: '1px solid var(--tl-border)',
-          background: 'var(--tl-surface)',
-        }}
-      />
+            maxWidth: '13rem',
+            aspectRatio: '1 / 1',
+            borderRadius: 12,
+            border: '1px solid var(--tl-border)',
+            background: 'var(--tl-surface)',
+          }}
+        />
+      </div>
 
       <div className="flex gap-2">
         <button

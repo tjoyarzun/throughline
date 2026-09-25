@@ -1,3 +1,5 @@
+import { sql } from 'drizzle-orm';
+import { withUser, type Tx } from '../db/client';
 import { tasteSummary, tasteByPredicate } from './taste';
 
 /**
@@ -27,6 +29,52 @@ export interface Persona {
   lines: PersonaLine[];
   /** Enough history for any of this to mean something. */
   ready: boolean;
+  /**
+   * The card's color and its piece of art, taken from ONE title: the thing
+   * you rated highest, most recently.
+   *
+   * Not an invented palette and not a hash of a name. The accent is extracted
+   * from that poster's own most chromatic region and stored on the title, so
+   * two people whose favorite is the same film get the same color, and a
+   * person whose taste moves sees their card move with it.
+   *
+   * Null on a library with nothing rated, or when the poster is black and
+   * white and genuinely has no hue. The card falls back to gold, which is
+   * what every surface reading accent_color has always done.
+   */
+  accent: string | null;
+  posterPath: string | null;
+  posterTitle: string | null;
+}
+
+async function rows<T>(tx: Tx, query: ReturnType<typeof sql>): Promise<T[]> {
+  return (await tx.execute(query)) as unknown as T[];
+}
+
+/** The highest-rated thing you have watched, most recent first among ties. */
+async function favorite(
+  accountId: string,
+): Promise<{ accent: string | null; poster: string | null; title: string | null }> {
+  const found = await withUser(accountId, async (tx) =>
+    rows<{ accent_color: string | null; poster_path: string | null; title: string }>(
+      tx,
+      sql`
+        SELECT t.accent_color, t.poster_path, t.title
+        FROM sem.user_title ut
+        JOIN sem.title t ON t.id = ut.title_id
+        WHERE ut.account_id = ${accountId}
+          AND ut.status = 'watched'
+          AND t.poster_path IS NOT NULL
+        ORDER BY ut.rating DESC NULLS LAST, ut.last_watched_on DESC NULLS LAST
+        LIMIT 1`,
+    ),
+  );
+  const f = found[0];
+  return {
+    accent: f?.accent_color ?? null,
+    poster: f?.poster_path ?? null,
+    title: f?.title ?? null,
+  };
 }
 
 /** Percentage, rounded, guarding the zero-corpus case. */
@@ -35,11 +83,12 @@ function share(seen: number, total: number): number {
 }
 
 export async function persona(accountId: string): Promise<Persona> {
-  const [summary, directors, themes, actors] = await Promise.all([
+  const [summary, directors, themes, actors, fav] = await Promise.all([
     tasteSummary(accountId),
     tasteByPredicate(accountId, 'directed_by', 3),
     tasteByPredicate(accountId, 'explores_theme', 3),
     tasteByPredicate(accountId, 'features_actor', 3),
+    favorite(accountId),
   ]);
 
   /* Five is where the affinity view stops being noise: below it one film with
@@ -83,5 +132,13 @@ export async function persona(accountId: string): Promise<Persona> {
   if (summary.top_theme && !themeUsed) lines.push({ label: 'thread', value: summary.top_theme });
   else if (summary.mean_rating) lines.push({ label: 'average', value: summary.mean_rating });
 
-  return { headline, subhead, lines, ready };
+  return {
+    headline,
+    subhead,
+    lines,
+    ready,
+    accent: fav.accent,
+    posterPath: fav.poster,
+    posterTitle: fav.title,
+  };
 }
