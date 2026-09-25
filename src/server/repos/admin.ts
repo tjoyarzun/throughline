@@ -34,7 +34,6 @@ export interface AdminUser {
   rated: number;
   episodes: number;
   last_login: string | null;
-  streak: number;
   active_sessions: number;
 }
 

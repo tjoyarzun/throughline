@@ -164,9 +164,17 @@ END $$;
 /*
  * Everyone, with the numbers that say whether they are actually using it.
  *
- * The streak counts CONSECUTIVE DAYS ending today or yesterday. Ending
- * yesterday still counts: a streak should not appear broken first thing in the
- * morning before you have opened the app.
+ * THERE IS NO STREAK HERE ANY MORE, and the reason is worth keeping so nobody
+ * adds it back the same way. It counted distinct days in usr.auth_session --
+ * days on which a SESSION WAS CREATED, not days the app was used. Sessions
+ * are 30-day rolling with a 7-day refresh, so somebody who stays signed in
+ * and opens the app daily has exactly one row and scored a permanent streak
+ * of 1. Measured before removing it: one account had 25 session rows across
+ * 2 distinct days.
+ *
+ * Anything measuring engagement has to come from an append-only record of
+ * things the person DID. usr.state_event and usr.viewing are exactly that, if
+ * the number is ever wanted again.
  */
 DROP FUNCTION IF EXISTS usr.admin_users();
 DROP FUNCTION IF EXISTS usr.admin_sessions(uuid);
@@ -186,7 +194,6 @@ RETURNS TABLE (
   rated int,
   episodes int,
   last_login timestamptz,
-  streak int,
   active_sessions int
 )
 LANGUAGE plpgsql
@@ -212,20 +219,6 @@ BEGIN
       WHERE r.account_id = a.id AND r.superseded_at IS NULL),
     (SELECT count(*)::int FROM usr.episode_progress p WHERE p.account_id = a.id),
     (SELECT max(s.created_at) FROM usr.auth_session s WHERE s.user_id = a.id),
-    COALESCE((
-      -- Gaps and islands: number each distinct login day, subtract the row
-      -- number, and consecutive days share a value. Count the run containing
-      -- today or yesterday.
-      WITH days AS (
-        SELECT DISTINCT s.created_at::date AS d
-        FROM usr.auth_session s WHERE s.user_id = a.id
-      ), grouped AS (
-        SELECT d, d - (row_number() OVER (ORDER BY d))::int AS grp FROM days
-      )
-      SELECT count(*)::int FROM grouped
-      WHERE grp = (SELECT grp FROM grouped ORDER BY d DESC LIMIT 1)
-        AND (SELECT max(d) FROM days) >= now()::date - 1
-    ), 0),
     (SELECT count(*)::int FROM usr.auth_session s
       WHERE s.user_id = a.id AND s.expires_at > now())
   FROM usr.account a

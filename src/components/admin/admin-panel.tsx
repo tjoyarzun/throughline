@@ -179,8 +179,7 @@ function UserRow({ user, currentSessionId }: { user: AdminUser; currentSessionId
             {user.email}
           </span>
           <span className="mt-1 text-[10px] tabular-nums" style={{ ...mono, ...dim }}>
-            last seen {day(user.last_login)} · {user.streak}
-            {user.streak === 1 ? ' day streak' : ' day streak'} · joined {day(user.created_at)}
+            last seen {day(user.last_login)} · joined {day(user.created_at)}
           </span>
         </span>
         <span className="flex shrink-0 gap-4">
