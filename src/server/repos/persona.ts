@@ -51,22 +51,55 @@ async function rows<T>(tx: Tx, query: ReturnType<typeof sql>): Promise<T[]> {
   return (await tx.execute(query)) as unknown as T[];
 }
 
-/** The highest-rated thing you have watched, most recent first among ties. */
-async function favorite(
+/** Percentage, rounded, guarding the zero-corpus case. */
+function share(seen: number, total: number): number {
+  return total > 0 ? Math.round((seen / total) * 100) : 0;
+}
+
+/**
+ * A poster for the thing the headline is ABOUT.
+ *
+ * The first version took the highest-rated title in the library, full stop --
+ * which produced a card reading "Joel Coen completist" beside a poster of
+ * Severance. Both facts were true and they had nothing to do with each other,
+ * so the card looked like a bug. The art, the color and the sentence have to
+ * come from one subject or the card is three unrelated claims in a frame.
+ *
+ * So: the best-rated title YOU have watched that connects to the headline's
+ * node, by the same relationship the headline is about. A Coen headline gets
+ * a Coen film. An Obsession headline gets something that explores Obsession.
+ */
+async function artFor(
   accountId: string,
+  node: { node_type: string; node_id: string; canonical_predicate?: string } | null,
 ): Promise<{ accent: string | null; poster: string | null; title: string | null }> {
   const found = await withUser(accountId, async (tx) =>
     rows<{ accent_color: string | null; poster_path: string | null; title: string }>(
       tx,
-      sql`
-        SELECT t.accent_color, t.poster_path, t.title
-        FROM sem.user_title ut
-        JOIN sem.title t ON t.id = ut.title_id
-        WHERE ut.account_id = ${accountId}
-          AND ut.status = 'watched'
-          AND t.poster_path IS NOT NULL
-        ORDER BY ut.rating DESC NULLS LAST, ut.last_watched_on DESC NULLS LAST
-        LIMIT 1`,
+      node
+        ? sql`
+            SELECT t.accent_color, t.poster_path, t.title
+            FROM sem.user_title ut
+            JOIN sem.title t ON t.id = ut.title_id
+            JOIN sem.edge_bidirectional e
+              ON e.subject_type = 'title' AND e.subject_id = ut.title_id
+             AND e.object_type = ${node.node_type} AND e.object_id = ${node.node_id}::uuid
+            WHERE ut.account_id = ${accountId}
+              AND ut.status = 'watched'
+              AND t.poster_path IS NOT NULL
+            ORDER BY ut.rating DESC NULLS LAST, ut.last_watched_on DESC NULLS LAST
+            LIMIT 1`
+        : /* No headline node -- a library too thin for one. Fall back to the
+             best-rated thing overall, which at least is still THEIRS. */
+          sql`
+            SELECT t.accent_color, t.poster_path, t.title
+            FROM sem.user_title ut
+            JOIN sem.title t ON t.id = ut.title_id
+            WHERE ut.account_id = ${accountId}
+              AND ut.status = 'watched'
+              AND t.poster_path IS NOT NULL
+            ORDER BY ut.rating DESC NULLS LAST, ut.last_watched_on DESC NULLS LAST
+            LIMIT 1`,
     ),
   );
   const f = found[0];
@@ -77,18 +110,12 @@ async function favorite(
   };
 }
 
-/** Percentage, rounded, guarding the zero-corpus case. */
-function share(seen: number, total: number): number {
-  return total > 0 ? Math.round((seen / total) * 100) : 0;
-}
-
 export async function persona(accountId: string): Promise<Persona> {
-  const [summary, directors, themes, actors, fav] = await Promise.all([
+  const [summary, directors, themes, actors] = await Promise.all([
     tasteSummary(accountId),
     tasteByPredicate(accountId, 'directed_by', 3),
     tasteByPredicate(accountId, 'explores_theme', 3),
     tasteByPredicate(accountId, 'features_actor', 3),
-    favorite(accountId),
   ]);
 
   /* Five is where the affinity view stops being noise: below it one film with
@@ -102,9 +129,10 @@ export async function persona(accountId: string): Promise<Persona> {
 
   let headline = 'A watcher in progress';
   let subhead: string | null = null;
-  /* When the headline is already the theme, repeating it as a stat reads as
-     a bug rather than as emphasis -- "Drawn to Obsession / thread: Obsession". */
-  let themeUsed = false;
+
+  /* Whatever the headline ends up being about. The art is fetched for THIS,
+     after the branch below decides, so the two cannot disagree. */
+  let lead: { node_type: string; node_id: string } | null = null;
 
   if (ready && topDirector && topDirector.n_titles >= 3) {
     const pct = share(topDirector.n_titles, topDirector.corpus_titles);
@@ -115,22 +143,35 @@ export async function persona(accountId: string): Promise<Persona> {
         ? `${topDirector.label} completist`
         : `Follows ${topDirector.label}`;
     subhead = `${topDirector.n_titles} of ${topDirector.corpus_titles}`;
+    lead = topDirector;
   } else if (ready && topTheme) {
     headline = `Drawn to ${topTheme.label}`;
     subhead = `a theme in ${topTheme.n_titles} you've watched`;
-    themeUsed = true;
+    lead = topTheme;
   } else if (ready && topActor && topActor.n_titles >= 3) {
     headline = `Turns up for ${topActor.label}`;
     subhead = `${topActor.n_titles} of ${topActor.corpus_titles}`;
+    lead = topActor;
   }
 
+  const fav = await artFor(accountId, lead);
+
+  /**
+   * Numbers only, and short ones.
+   *
+   * This row used to carry a `thread` whose value was a theme name, and
+   * "Monsters & the Monstrous" is twenty-four characters in a row laid out
+   * for "4.25". It ran off the card. The fix is not a smaller font or an
+   * ellipsis: a theme is a different kind of fact from a count, and putting
+   * it in a rank of counts was the mistake. When a theme is worth saying it
+   * is already the headline; when it is not, it does not belong on the card.
+   */
   const lines: PersonaLine[] = [
     { label: 'watched', value: summary.watched.toLocaleString('en-US') },
     { label: 'hours', value: summary.hours.toLocaleString('en-US') },
     { label: 'directors', value: summary.distinct_directors.toLocaleString('en-US') },
   ];
-  if (summary.top_theme && !themeUsed) lines.push({ label: 'thread', value: summary.top_theme });
-  else if (summary.mean_rating) lines.push({ label: 'average', value: summary.mean_rating });
+  if (summary.mean_rating) lines.push({ label: 'average', value: summary.mean_rating });
 
   return {
     headline,

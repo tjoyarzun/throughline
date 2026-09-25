@@ -162,7 +162,10 @@ export async function GET(): Promise<Response> {
             style={{
               display: 'flex',
               fontFamily: 'Instrument Serif',
-              fontSize: p.headline.length > 22 ? 70 : 90,
+              /* Three steps, because a director's name can be long: "Jean-Pierre
+                 Jeunet completist" is 29 characters and has to fit on one line
+                 beside the poster. */
+              fontSize: p.headline.length > 30 ? 56 : p.headline.length > 22 ? 70 : 90,
               color: '#FFFFFF',
               lineHeight: 1.0,
             }}
@@ -186,7 +189,10 @@ export async function GET(): Promise<Response> {
             background: 'rgba(255,255,255,0.16)',
           }}
         />
-        <div style={{ display: 'flex', gap: 56 }}>
+        {/* Wrap rather than clip. Every value here is a short number by
+            construction now, but a row that silently runs off the edge is how
+            the last one failed, and wrapping costs nothing. */}
+        <div style={{ display: 'flex', gap: 56, flexWrap: 'wrap' }}>
           {p.lines.map((l) => (
             <div key={l.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', fontSize: 44, color: '#FFFFFF' }}>{l.value}</div>
