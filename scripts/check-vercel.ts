@@ -18,7 +18,17 @@ interface VercelConfig {
 }
 
 const config = JSON.parse(readFileSync('vercel.json', 'utf8')) as VercelConfig;
-const plan = process.env.VERCEL_PLAN ?? 'hobby';
+/**
+ * The plan is a fact about the project, so the default states it rather than
+ * every caller having to. It was 'hobby' until the account was upgraded on
+ * 2026-10-11 to let refresh-stale run hourly while the corpus catches up.
+ *
+ * IF THE PROJECT EVER GOES BACK TO HOBBY: change this to 'hobby' and make
+ * every cron daily again, or Vercel rejects the deployment with "Hobby
+ * accounts are limited to daily Cron Jobs" -- which is the failure this whole
+ * script exists to catch locally instead of in a build log.
+ */
+const plan = process.env.VERCEL_PLAN ?? 'pro';
 const problems: string[] = [];
 
 /**
