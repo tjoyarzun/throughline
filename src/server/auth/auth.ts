@@ -143,6 +143,19 @@ export const auth = betterAuth({
     emailOTP({
       otpLength: 6,
       expiresIn: 60 * 10,
+      /**
+       * Three guesses per code, stated rather than inherited.
+       *
+       * This is the control that makes a six-digit code safe, and it is the
+       * only one that cannot be worked around by rotating IPs: the counter
+       * lives on the verification record, not in a per-IP bucket, so a
+       * thousand addresses still get three guesses at a given code between
+       * them. Better Auth defaults to 3 and we agree with it -- but an
+       * implicit default is one dependency upgrade away from changing without
+       * a diff, and that change would be invisible until someone brute-forced
+       * a code.
+       */
+      allowedAttempts: 3,
       // A six-digit code beats a magic link on a phone: a link opens in
       // whichever browser handles mail, which is often not the one the person
       // started in, and the session lands somewhere they are not looking.
