@@ -27,6 +27,10 @@ export const PUBLIC_PREFIXES = [
   // The service worker script itself. Without this the registration request is
   // redirected to sign-in and the worker silently never installs.
   '/sw.js',
+  // Same failure as sw.js, and it was live: crawlers asked for /robots.txt and
+  // got a 307 to the sign-in page 14 times in 3.5 hours. With no Disallow to
+  // read, they walked all ~70,000 /explore/ pages instead.
+  '/robots.txt',
   '/offline',
 ] as const;
 

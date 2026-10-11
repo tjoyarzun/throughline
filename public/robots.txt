@@ -1,0 +1,15 @@
+# /explore/[type]/[slug] spans the whole corpus -- ~70,000 URLs (4,866 titles,
+# 58,714 people) -- and each one runs two multi-CTE graph queries. Every request
+# is a cache miss, because a crawler never asks for the same slug twice.
+#
+# Measured 2026-10-11: 969 distinct /explore/ slugs in 3.5 hours, 97% of all
+# production traffic, 100% MISS. That is the entire Vercel compute bill.
+#
+# The bare /explore landing page stays crawlable, and robots.txt does not affect
+# humans or direct links, so a reviewer arriving from a resume link is unaffected.
+User-agent: *
+Disallow: /explore/
+
+# NOT disallowing /s/ -- share pages already send noindex, but unfurl bots have
+# to fetch them to build an iMessage or Slack preview. Blocking them here would
+# break link previews to save a trivial number of requests.
