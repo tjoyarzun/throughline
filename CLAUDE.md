@@ -24,8 +24,15 @@ deletion.
 - A deliberate rollback drill, exercised once so it is known to work rather than assumed.
 
 Still deferred, each a decision rather than an oversight: View Transitions, visual-regression
-baselines, Sentry, the path cache (p95 173ms against a 150ms target), rotating the Resend key, and
-RLS on `usr.auth_session` (currently covered by a revoked grant, the same way `usr.invite` now is).
+baselines, Sentry, and the path cache (p95 173ms against a 150ms target).
+
+**RLS on `usr.auth_*` is NOT a gap** — it is deliberate and was wrongly listed here as deferred.
+Better Auth queries those tables before a session exists, so there is no `app.account_id` to filter
+by; they are reachable only through the library's own handlers on the least-privilege `app_auth`
+connection. `drizzle/schema/usr.ts` says so at the table definitions. Do not "fix" it.
+
+The Resend key was rotated on 2026-10-11 and the replacement is scoped to **sending only**, so a
+future leak cannot read back sent OTP codes. That was the worst-case path and it is shut.
 
 What shipped in this phase:
 
@@ -51,6 +58,20 @@ ingest:
 | -------------- | ------------------------------------------------- |
 | App            | https://throughline-ontology.vercel.app           |
 | Vercel project | `throughline-ontology` (team `agora-innovations`) |
+| Plan           | **Pro**, temporarily — see below                  |
+
+**The plan is Pro only so `refresh-stale` can run hourly while the corpus catches up, and the
+intent is to go back to Hobby.** Two things have to move together when it does: the schedule in
+`vercel.json` back to `0 3 * * *`, and the default in `scripts/check-vercel.ts` back to `'hobby'`.
+Reverting only the first leaves the guard passing config Vercel will reject at deploy time, which
+is the exact failure that script exists to catch locally. Asana `1219383519261104` carries the
+trigger condition and the steps.
+
+**What forced the upgrade was not the crons.** `/explore/[type]/[slug]` is public over ~70,000
+URLs and there was no `robots.txt`; a crawler walked 97% of all production traffic, every request a
+cache miss running two graph queries. `public/robots.txt` disallows `/explore/` and `/robots.txt`
+is exempted from the session gate in **both** `src/middleware.ts` and `src/lib/route-access.ts` —
+without the second, middleware 307s the file to the sign-in page and crawlers never see it.
 
 The former `throughline-mu-seven.vercel.app` 308-redirects here, preserving
 path and method, so links handed out before the rename still resolve. The
@@ -178,6 +199,16 @@ pnpm check-env        # env parity with .env.example
 ```
 
 `pnpm verify` is what CI runs. Run it before you claim something works.
+
+Three integration tests fail locally with `DATABASE_URL is not set`. That is expected, not broken:
+`vitest run` takes no `--env-file` and `vitest.config.ts` loads no dotenv, so **vitest never reads
+`.env.local`** — CI supplies the variable as a job-level env. Export it in your shell if you want
+them, but do not "fix" the config.
+
+`scripts/make-icons.py` regenerates `public/*.png` and is the only source for the icon geometry.
+Run by hand, needs Pillow, deliberately not a project dependency. It is also the one file in
+`scripts/` that **no check sees** — `check-locale`, `cspell` and prettier all match only
+`.ts/.tsx/.md/.css/.yaml/.yml/.sh/.json`.
 
 ## ADR index
 
