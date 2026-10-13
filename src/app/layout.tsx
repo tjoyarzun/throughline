@@ -37,8 +37,11 @@ export const metadata: Metadata = {
   /**
    * The small sizes are a SIMPLIFIED mark, not a downscale.
    *
-   * At 16 and 32 pixels the three nodes on the arc merge into a smudge, so
-   * those two drop the middle node and thicken the stroke. Listing them means
+   * The full icon is a six-node graph with seven edges and soft halos, which
+   * at 16 and 32 pixels is mud. Those two draw three nodes on a flat ground
+   * with no halos and no vignette -- enough to keep the three hues that say
+   * the nodes are different KINDS of thing, and nothing that bands at that
+   * size. Both marks live in scripts/make-icons.py. Listing the sizes means
    * the browser picks one rather than resampling the 192 into mush.
    */
   icons: {
