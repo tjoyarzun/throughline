@@ -44,9 +44,11 @@ NODES = [
     (58, 78, 6.5, BLUE),
 ]
 LINKS = [(0, 1), (1, 2), (0, 3), (2, 3), (0, 4), (4, 5), (3, 5)]
-# Peak alpha, not flat fill: the ramp spreads it, so these read far softer
-# than the same numbers on an SVG circle. Tuned against the 512 render.
-HALOS = [(32, 34, 19, GOLD, 0.34), (74, 50, 17, PURPLE, 0.38), (58, 78, 17, BLUE, 0.38)]
+# (x, y, radius, color, alpha) -- the mockup values exactly. A FLAT alpha across
+# alpha across the disc, not a peak: see DISC, which holds them out to 72% of
+# the radius and only then feathers. An earlier version ramped from the center
+# instead, which looked like the same numbers and measured eight times weaker.
+HALOS = [(32, 34, 16, GOLD, 0.16), (74, 50, 14, PURPLE, 0.18), (58, 78, 14, BLUE, 0.18)]
 EDGE_W = 2.4
 
 # The simplified mark for 16 and 32, where six nodes and seven edges are mud.
@@ -69,7 +71,6 @@ def falloff(size, power=1.0):
     return g.resize((size, size), Image.BICUBIC)
 
 
-RAMP = falloff(512, power=1.35)  # halos: quick near the core, long tail
 VIGNETTE = falloff(512, power=1.15)  # ground: broader, flatter
 
 
@@ -109,19 +110,31 @@ def draw_mark(img, nodes, links, halos, edge_w, scale=1.0):
 
     layer = layer.resize((S, S), Image.LANCZOS)
 
-    # Halos go UNDER the mark, and are gradients rather than stacked circles.
+    # Halos go UNDER the mark, pasted STRAIGHT onto the ground.
+    #
+    # Not via an intermediate RGBA layer: compositing the color onto a
+    # transparent (so black) layer darkens it by the mask, and the layer's own
+    # alpha then applies the mask a second time. The color lands at alpha
+    # squared. Measured on the first build: +4 red just outside the gold node
+    # where the mockup gives +34.
+    #
+    # The disc is HARD-EDGED, drawn the same way the nodes are -- oversampled
+    # and downsampled, so the rim is antialiased and nothing more. Two softer
+    # versions were tried and both were wrong: a center-out ramp erased them,
+    # and a feathered rim turned a disc of color into a blur. The mockup drew
+    # plain circles at a flat opacity, and that crispness is the look.
     if halos:
-        base = Image.new("RGBA", (S, S), (0, 0, 0, 0))
         for x, y, r, col, alpha in halos:
             rr = int(r * scale / 100 * S * 2)
             if rr < 2:
                 continue
-            m = RAMP.resize((rr, rr), Image.BICUBIC).point(lambda v: int(v * alpha))
-            patch = Image.new("RGBA", (rr, rr), col + (255,))
+            m = Image.new("L", (rr * OS, rr * OS), 0)
+            ImageDraw.Draw(m).ellipse([0, 0, rr * OS - 1, rr * OS - 1], fill=int(255 * alpha))
+            m = m.resize((rr, rr), Image.LANCZOS)
+            patch = Image.new("RGB", (rr, rr), col)
             cx = int(((x - 50) * scale + 50) / 100 * S) - rr // 2
             cy = int(((y - 50) * scale + 50) / 100 * S) - rr // 2
-            base.paste(patch, (cx, cy), m)
-        img.paste(base, (0, 0), base)
+            img.paste(patch, (cx, cy), m)
 
     img.paste(layer, (0, 0), layer)
     return img
