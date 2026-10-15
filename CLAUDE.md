@@ -58,20 +58,25 @@ ingest:
 | -------------- | ------------------------------------------------- |
 | App            | https://throughline-ontology.vercel.app           |
 | Vercel project | `throughline-ontology` (team `agora-innovations`) |
-| Plan           | **Pro**, temporarily — see below                  |
+| Plan           | **Hobby** — every cron must stay daily            |
 
-**The plan is Pro only so `refresh-stale` can run hourly while the corpus catches up, and the
-intent is to go back to Hobby.** Two things have to move together when it does: the schedule in
-`vercel.json` back to `0 3 * * *`, and the default in `scripts/check-vercel.ts` back to `'hobby'`.
-Reverting only the first leaves the guard passing config Vercel will reject at deploy time, which
-is the exact failure that script exists to catch locally. Asana `1219383519261104` carries the
-trigger condition and the steps.
+`scripts/check-vercel.ts` defaults to `'hobby'` and rejects a sub-daily schedule, because Vercel
+rejects one at deploy time with "Hobby accounts are limited to daily Cron Jobs" and the build log
+is the only other place you would find out. If the plan changes, that default moves with it — the
+two disagreeing is the failure the script exists to prevent.
 
-**What forced the upgrade was not the crons.** `/explore/[type]/[slug]` is public over ~70,000
-URLs and there was no `robots.txt`; a crawler walked 97% of all production traffic, every request a
-cache miss running two graph queries. `public/robots.txt` disallows `/explore/` and `/robots.txt`
-is exempted from the session gate in **both** `src/middleware.ts` and `src/lib/route-access.ts` —
-without the second, middleware 307s the file to the sign-in page and crawlers never see it.
+**A crawler, not the crons, is what drove the cost.** `/explore/[type]/[slug]` is public over
+~70,000 URLs, each request a cache miss running two graph queries, and there was no `robots.txt`.
+`public/robots.txt` now disallows `/explore/`, and `/robots.txt` is exempted from the session gate
+in **both** `src/middleware.ts` and `src/lib/route-access.ts` — without the second, middleware 307s
+the file to the sign-in page and crawlers never see it.
+
+That cut the rate from 278/hour to ~30/hour. **The residue is a bot that ignores `robots.txt`** —
+measured 2026-10-15, still walking the corpus methodically by entity type, having finished `person`
+and moved on to `organization`. ~21,600 requests a month, roughly 2% of Hobby's allowance, so it is
+affordable rather than fixed. If it ever grows, the lever is a user-agent check in middleware —
+which needs the agent string first, and Vercel's runtime logs do not carry one. Read it from
+Observability or the Firewall tab, not from `vercel logs`.
 
 The former `throughline-mu-seven.vercel.app` 308-redirects here, preserving
 path and method, so links handed out before the rename still resolve. The

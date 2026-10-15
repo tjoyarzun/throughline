@@ -172,9 +172,10 @@ above is the habit worth keeping.
 
 ## 6. Open, in the order I would do it
 
-1. **Revert `refresh-stale` to daily and drop back to Hobby** — Asana `1219383519261104`. Trigger:
-   `pct_fresh >= 80`. Both `vercel.json` **and** `scripts/check-vercel.ts` move together. Before
-   downgrading, confirm in Observability → Top Paths that `/explore/…` is no longer dominating.
+1. ~~Revert `refresh-stale` to daily and drop back to Hobby~~ — **done 2026-10-15.** Freshness
+   reached **100%** (from 36%), `/api/health` returns `ok`, and both `vercel.json` and
+   `scripts/check-vercel.ts` are back on daily/hobby. See section 7 for what the traffic check
+   actually found, which was not what the percentage suggested.
 2. **Check the icon on a real device.** Delete and re-add to the Home Screen to beat the iOS cache,
    and look at it against your actual wallpaper. The hard halo rims are more visible on a light
    wallpaper than the soft version was.
@@ -196,3 +197,41 @@ above is the habit worth keeping.
 Full backlog and sizing live in Asana project `1217469158076973`. The two review documents —
 [ARCHITECTURE.md](ARCHITECTURE.md) and [DATA_MODEL.md](DATA_MODEL.md) — carry the complete
 discrepancy lists in their final sections.
+
+---
+
+## 7. Follow-up, 2026-10-15 — reading the crawler numbers correctly
+
+**Freshness closed.** 36% → **100%**, `/api/health` back to `ok` from a 503. Hourly `refresh-stale`
+ran for three days and cleared the ~3,100-title backlog, so the 80% threshold was right all along
+and only the cadence was wrong. Reverted to daily; plan goes back to Hobby.
+
+**The traffic number is a trap, and I nearly fell in it.** `/explore` is still **96% of all
+production traffic** — essentially unchanged from the 97% that forced the upgrade. Read as a
+percentage, the robots.txt fix did nothing.
+
+Read as a rate, it did almost everything:
+
+|                     | Before       | After        |
+| ------------------- | ------------ | ------------ |
+| `/explore` requests | **278/hour** | **~30/hour** |
+| Projected per month | ~200,000     | **~21,600**  |
+
+The percentage barely moved because legitimate traffic is near zero — it is a private family app
+with five users, so whatever remains is dominated by whatever is left of the bot. **On a low-traffic
+site, share-of-traffic is a meaningless health metric.** Measure the absolute rate.
+
+Two measurement notes worth keeping: `vercel logs --limit N` silently truncates, so a count that
+equals the limit is a floor and not a total — take a window small enough to come back under it.
+And the logs carry no user-agent field at all, so a bot cannot be identified from them; that lives
+in Observability or the Firewall tab.
+
+**What remains is a bot that ignores `robots.txt`.** Confirmed served: `200`, `User-agent: *`,
+`Disallow: /explore/`. It is walking the corpus methodically by entity type — it was 83% `person`
+on 10-11, and is 87% `organization` now, so it finished one type and moved to the next. 384 distinct
+slugs in 385 requests, every one a cache miss.
+
+At ~2% of Hobby's allowance this is affordable rather than solved, and the distinction matters. If
+it accelerates or another joins, the lever is a user-agent check in `middleware.ts` guarding
+`/explore/` — cheap, because middleware runs before the two graph queries that cost the money. That
+needs the agent string first.
