@@ -85,7 +85,6 @@ export default async function Image({ params }: { params: Promise<{ slug: string
 
       <div style={{ display: 'flex', position: 'relative', padding: 56, gap: 44, width: '100%' }}>
         {poster && (
-          // eslint-disable-next-line @next/next/no-img-element -- Satori needs a plain img
           <img
             src={poster}
             alt=""
