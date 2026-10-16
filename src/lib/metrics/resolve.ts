@@ -149,6 +149,7 @@ export async function resolveMetric(
       }
     }
 
+  // eslint-disable-next-line no-restricted-syntax -- reviewed: only metrics.yaml text is spliced in; accountId is $1 (see ON SQL SAFETY above).
   const rows = await sql.unsafe<
     {
       key: string;

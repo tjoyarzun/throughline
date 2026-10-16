@@ -121,8 +121,15 @@ single user. Never use plain `SET` for the account id.
 
 - **Input validation** — Zod at every boundary: server actions, route handlers, provider responses,
   cron payloads. Never trust a provider's shape.
-- **SQL injection** — Drizzle parameterization throughout. Dynamic graph SQL validates predicate and
-  column identifiers against the generated ontology allowlist; never interpolates user input.
+- **SQL injection** — every query in `src/` is a tagged template (postgres.js or Drizzle `sql`), so
+  values travel as parameters and never become SQL. ESLint bans the two escape hatches, `.unsafe()`
+  and `sql.raw`, anywhere in `src/`. Dynamic graph SQL validates predicate and column identifiers
+  against the generated ontology allowlist. `tests/authz/invite-gate.test.ts` sends classic payloads
+  through the sign-in invite check.
+- **Open redirect** — sign-in honors `?next=` only when it resolves to a path on this site
+  (`safeNextPath`); anything else goes home.
+- **Sign-in code flooding** — Better Auth limits code requests per IP; we add 5 per hour per
+  address, so nobody can fill a real inbox or spend the shared Resend quota.
 - **XSS** — React escaping; `dangerouslySetInnerHTML` is banned by ESLint. User notes render as
   plain text, not markdown, in MVP.
 - **CSP** — strict, nonce-based. `script-src 'self' 'nonce-…'`; `img-src 'self' data:

@@ -1,4 +1,5 @@
 import { SignInForm } from '@/components/auth/sign-in-form';
+import { safeNextPath } from '@/lib/route-access';
 
 export const metadata = { title: 'Sign in' };
 
@@ -16,7 +17,7 @@ export default async function SignInPage({
           A media tracker that understands how things connect.
         </p>
       </header>
-      <SignInForm next={next ?? '/'} invite={invite ?? ''} />
+      <SignInForm next={safeNextPath(next)} invite={invite ?? ''} />
       <p className="text-xs" style={{ color: 'var(--tl-text-faint)' }}>
         Throughline is invite-only. If you have a code, you can create an account with it.
       </p>

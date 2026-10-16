@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { emailOTP } from 'better-auth/plugins';
@@ -192,13 +193,33 @@ export const auth = betterAuth({
         .from(account)
         .where(eq(account.email, email))
         .limit(1);
-      if (existing.length > 0) return;
 
       // RESERVE, do not consume: the account does not exist until the code is
       // verified, so consuming here strands anyone who mistypes it.
-      if (!body.inviteCode || !(await reserveInvite(client, body.inviteCode, email))) {
+      if (
+        existing.length === 0 &&
+        (!body.inviteCode || !(await reserveInvite(client, body.inviteCode, email)))
+      ) {
         throw new APIError('FORBIDDEN', {
           message: 'Throughline is invite-only. A valid invite code is required to sign up.',
+        });
+      }
+
+      /**
+       * Per ADDRESS, on top of Better Auth's per-IP limit. Theirs is 3 a
+       * minute from one machine -- 4,000+ a day aimed at one real inbox,
+       * each a Resend send from the quota everyone's sign-in depends on, and
+       * more from more machines. Five an hour is far past what a person
+       * fumbling a code needs. Checked after the invite gate, so strangers
+       * guessing addresses never get as far as minting a bucket.
+       */
+      // Hashed: core.rate_limit is the global layer, and an address is personal
+      // data that would outlive the account it belongs to.
+      const bucket = `otp-email:${createHash('sha256').update(email).digest('hex').slice(0, 32)}`;
+      const perAddress = await rateLimitConsume(bucket, 5, 60 * 60);
+      if (!perAddress.allowed) {
+        throw new APIError('TOO_MANY_REQUESTS', {
+          message: 'Too many codes were requested for this address. Try again in an hour.',
         });
       }
     }),

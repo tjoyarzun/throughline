@@ -64,3 +64,26 @@ export const UNGATED_PREFIXES: readonly string[] = [
 export function isUngated(pathname: string): boolean {
   return UNGATED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 }
+
+/**
+ * Where sign-in sends someone, from the ?next= they arrived with: a path on
+ * this site, or home.
+ *
+ * Anything else is an open redirect -- a genuine Throughline sign-in link that
+ * finishes on a look-alike page asking for "the new code we just sent". The URL
+ * parser judges it because it is what the browser uses; a hand-rolled
+ * startsWith('/') misses '/\evil' and tab-split forms. The last check covers
+ * '/.//evil', which resolves on-site to a path the browser reads as
+ * protocol-relative.
+ */
+export function safeNextPath(next: string | undefined): string {
+  if (!next) return '/';
+  const base = 'https://throughline.invalid';
+  try {
+    const u = new URL(next, base);
+    const path = u.pathname + u.search + u.hash;
+    return u.origin === base && !/^\/[/\\]/.test(path) ? path : '/';
+  } catch {
+    return '/';
+  }
+}

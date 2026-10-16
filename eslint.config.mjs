@@ -19,6 +19,25 @@ const BAN_DANGEROUS_HTML = {
     'dangerouslySetInnerHTML is banned. User notes render as plain text. See docs/security.md.',
 };
 
+/**
+ * The two ways to hand the database a query built from a string. A tagged
+ * template (sql`... ${value}`) sends each value as a separate parameter, so
+ * input can never become SQL; these splice the text in first. src/ has none,
+ * and this keeps it that way. Operator scripts in scripts/ are not covered.
+ */
+const BAN_RAW_SQL = [
+  {
+    selector: "CallExpression[callee.property.name='unsafe']",
+    message:
+      'Raw SQL strings are banned in src/. Use a tagged template so values go as parameters. See docs/security.md.',
+  },
+  {
+    selector: "MemberExpression[object.name='sql'][property.name='raw']",
+    message:
+      'sql.raw splices text into the query. Use a tagged template so values go as parameters. See docs/security.md.',
+  },
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -47,6 +66,12 @@ export default tseslint.config(
     },
   },
 
+  // Application code never builds SQL from strings.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': ['error', BAN_DANGEROUS_HTML, ...BAN_RAW_SQL] },
+  },
+
   // Layer boundary: application code queries sem.* only.
   {
     files: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}', 'src/actions/**/*.ts'],
@@ -54,6 +79,7 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         BAN_DANGEROUS_HTML,
+        ...BAN_RAW_SQL,
         {
           selector: 'Literal[value=/\\b(core|raw)\\./]',
           message:

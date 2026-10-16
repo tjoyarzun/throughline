@@ -3,6 +3,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   isUngated,
+  safeNextPath,
   SELF_AUTHENTICATING_PREFIXES,
   SESSION_GATED_API_ROUTES,
 } from '@/lib/route-access';
@@ -69,5 +70,30 @@ describe('middleware session gate', () => {
       (r) => !covered(r) && !(SESSION_GATED_API_ROUTES as readonly string[]).includes(r),
     );
     expect(unlisted, 'unexpected ungated-by-omission API routes').toEqual([]);
+  });
+});
+
+describe('safeNextPath — where sign-in may send you', () => {
+  it('keeps paths on this site, query and fragment included', () => {
+    expect(safeNextPath('/library')).toBe('/library');
+    expect(safeNextPath('/title/arrival-2016?tab=cast#crew')).toBe(
+      '/title/arrival-2016?tab=cast#crew',
+    );
+    expect(safeNextPath(undefined)).toBe('/');
+    expect(safeNextPath('')).toBe('/');
+  });
+
+  it.each([
+    'https://evil.example',
+    '//evil.example',
+    '/\\evil.example',
+    '/\t/evil.example',
+    // Resolves on-site, but to "//evil.example", which the browser then reads
+    // as protocol-relative. The case a startsWith('/') check would wave through.
+    '/.//evil.example',
+    'javascript:alert(1)',
+    'http://[',
+  ])('refuses %j', (next) => {
+    expect(safeNextPath(next)).toBe('/');
   });
 });

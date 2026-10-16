@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { createHash } from 'node:crypto';
 import postgres from 'postgres';
 import { reserveInvite, redeemInvite } from '@/server/auth/invite';
 
@@ -105,5 +106,56 @@ run('invite gate', () => {
       SELECT email, redeemed_at::text FROM usr.invite WHERE code = 'GATE-WHO'`;
     expect(row!.email).toBe('someone@test.local');
     expect(row!.redeemed_at).toBeTruthy();
+  });
+
+  it('treats an injection attempt in the code as data, not SQL', async () => {
+    // The invite code is the one free-text field a stranger can send the login
+    // endpoint. Every query is a tagged template, so the driver ships it as a
+    // parameter and these match no row -- even with an open invite sitting
+    // there for a tautology to grab.
+    await open('GATE-BAIT');
+    for (const code of ["' OR '1'='1", "x' OR 1=1 --", "'; DELETE FROM usr.invite; --"]) {
+      expect(await reserveInvite(sql, code, 'attacker@test.local')).toBe(false);
+    }
+    const [row] = await sql<{ email: string | null }[]>`
+      SELECT email FROM usr.invite WHERE code = 'GATE-BAIT'`;
+    expect(row, 'the bait invite survived').toBeDefined();
+    expect(row!.email, 'and nobody reserved it').toBeNull();
+  });
+});
+
+/**
+ * Better Auth limits code requests per IP. Nothing limited them per ADDRESS,
+ * so one machine could send a real person 4,000+ codes a day -- each a Resend
+ * send from the quota every sign-in depends on. Driven through auth.api, which
+ * runs our hook but not Better Auth's IP limiter, so only the new limit is
+ * under test.
+ */
+run('per-address code limit', () => {
+  const EMAIL = 'gate-flood@test.local';
+  const BUCKET = `otp-email:${createHash('sha256').update(EMAIL).digest('hex').slice(0, 32)}`;
+  const reset = async () => {
+    await sql`DELETE FROM core.rate_limit WHERE bucket = ${BUCKET}`;
+    await sql`DELETE FROM usr.auth_verification WHERE identifier LIKE ${'%' + EMAIL + '%'}`;
+  };
+
+  beforeAll(async () => {
+    sql = postgres(URL!, { max: 2, prepare: false, onnotice: () => {} });
+    await sql`DELETE FROM usr.account WHERE email = ${EMAIL}`;
+    await sql`INSERT INTO usr.account (email, display_name) VALUES (${EMAIL}, 'Flood')`;
+    await reset();
+  });
+  afterAll(async () => {
+    await reset();
+    await sql`DELETE FROM usr.account WHERE email = ${EMAIL}`;
+    await sql.end();
+  });
+
+  it('sends five codes an hour to one address, then refuses', async () => {
+    const { auth } = await import('@/server/auth/auth');
+    const send = () => auth.api.sendVerificationOTP({ body: { email: EMAIL, type: 'sign-in' } });
+
+    for (let i = 1; i <= 5; i++) await expect(send(), `request ${i}`).resolves.toBeTruthy();
+    await expect(send()).rejects.toMatchObject({ statusCode: 429 });
   });
 });
