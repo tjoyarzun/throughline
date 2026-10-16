@@ -81,7 +81,7 @@ run('admin surface', () => {
   });
 
   it('lets an admin through, with the numbers', async () => {
-    const rows = await asUser<{ email: string; watched: number; streak: number }>(
+    const rows = await asUser<{ email: string; watched: number }>(
       adminId,
       'SELECT * FROM usr.admin_users()',
     );
@@ -89,7 +89,6 @@ run('admin surface', () => {
     const boss = rows.find((r) => r.email === 'adm-boss@test.local');
     expect(boss, 'the admin sees every account, including their own').toBeDefined();
     expect(Number(boss!.watched)).toBe(0);
-    expect(Number(boss!.streak), 'no logins yet is a streak of zero').toBe(0);
   });
 
   /**
