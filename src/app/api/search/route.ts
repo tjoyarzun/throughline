@@ -44,11 +44,14 @@ export async function GET(request: Request): Promise<NextResponse> {
   // Local never fails the request: if the provider is down, search still works
   // against everything already ingested.
   const [local, people] = await Promise.all([searchTitles(q), searchPeople(q)]);
-  const localTmdbIds = new Set(local.map((t) => t.tmdb_id).filter(Boolean));
+  // Keyed by kind as well as number: TMDB numbers movies and TV separately, so
+  // a bare id would hide The Walking Dead (TV 1402) from results whenever The
+  // Pursuit of Happyness (movie 1402) happened to match the same query.
+  const localTmdbIds = new Set(local.filter((t) => t.tmdb_id).map((t) => `${t.kind}:${t.tmdb_id}`));
 
   let remote: Awaited<ReturnType<typeof searchProvider>> = [];
   try {
-    remote = (await searchProvider(q)).filter((r) => !localTmdbIds.has(String(r.tmdbId)));
+    remote = (await searchProvider(q)).filter((r) => !localTmdbIds.has(`${r.kind}:${r.tmdbId}`));
   } catch {
     // Degrade to local-only rather than erroring the search box.
   }

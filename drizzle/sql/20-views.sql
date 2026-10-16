@@ -143,7 +143,7 @@ CREATE OR REPLACE VIEW sem.title AS
     -- against provider hits without reaching into core.external_id itself.
     t.sort_title,
     (SELECT x.source_id FROM core.external_id x
-      WHERE x.entity_type = 'title' AND x.entity_id = t.id AND x.source = 'tmdb'
+      WHERE x.entity_type = 'title' AND x.entity_id = t.id AND x.source IN ('tmdb', 'tmdb_tv')
       LIMIT 1) AS tmdb_id
   FROM core.title t;
 

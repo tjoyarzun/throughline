@@ -133,7 +133,7 @@ export const HANDLERS: Record<string, Handler> = {
       SELECT x.source_id AS tmdb_id, t.kind
       FROM core.title t
       JOIN core.external_id x
-        ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source = 'tmdb'
+        ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source IN ('tmdb', 'tmdb_tv')
       WHERE t.synced_at < now() - interval '7 days'
       ORDER BY
         EXISTS (SELECT 1 FROM usr.title_state ts WHERE ts.title_id = t.id) DESC,
@@ -232,7 +232,7 @@ export const HANDLERS: Record<string, Handler> = {
       SELECT t.id, x.source_id AS tmdb_id, t.kind
       FROM core.title t
       JOIN core.external_id x
-        ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source = 'tmdb'
+        ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source IN ('tmdb', 'tmdb_tv')
       WHERE EXISTS (SELECT 1 FROM usr.title_state ts WHERE ts.title_id = t.id)
       ORDER BY (
         SELECT max(a.observed_at) FROM core.availability a WHERE a.title_id = t.id

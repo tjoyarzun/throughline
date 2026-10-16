@@ -217,7 +217,10 @@ async function exploreSeeds(
   const room = limit - mine.length;
   let shared: TitleSummary[] = [];
   try {
-    shared = take(await titlesByTmdbIds((await trending(24)).map((t) => t.tmdbId)), room);
+    shared = take(
+      await titlesByTmdbIds((await trending(24)).map((t) => ({ tmdbId: t.tmdbId, kind: t.kind }))),
+      room,
+    );
   } catch {
     // The provider being down is not a reason to have nowhere to start.
   }

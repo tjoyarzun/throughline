@@ -26,7 +26,7 @@ export async function enqueueEpisodeHydration(titleId: string): Promise<boolean>
     SELECT x.source_id AS tmdb_id
     FROM core.title t
     JOIN core.external_id x ON x.entity_type = 'title' AND x.entity_id = t.id
-    WHERE t.id = ${titleId} AND t.kind = 'show' AND x.source = 'tmdb'
+    WHERE t.id = ${titleId} AND t.kind = 'show' AND x.source = 'tmdb_tv'
       AND NOT EXISTS (SELECT 1 FROM core.episode e WHERE e.title_id = t.id)`;
   if (!row) return false;
 

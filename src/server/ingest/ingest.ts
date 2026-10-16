@@ -468,7 +468,7 @@ export class Ingestor {
     const [row] = await this.sql<{ id: string }[]>`
       SELECT t.id FROM core.title t
       JOIN core.external_id x ON x.entity_type = 'title' AND x.entity_id = t.id
-      WHERE x.source = 'tmdb' AND x.source_id = ${String(tmdbId)} AND t.kind = 'show'`;
+      WHERE x.source = 'tmdb_tv' AND x.source_id = ${String(tmdbId)} AND t.kind = 'show'`;
     if (!row) return { seasons: 0, episodes: 0 };
     const titleId = row.id;
 
@@ -539,7 +539,7 @@ export class Ingestor {
       titleId = row!.id;
       await this.sql`
         INSERT INTO core.external_id (source, source_id, entity_type, entity_id, is_primary, last_verified)
-        VALUES ('tmdb', ${String(s.id)}, 'title', ${titleId}, true, now())
+        VALUES ('tmdb_tv', ${String(s.id)}, 'title', ${titleId}, true, now())
         ON CONFLICT (source, source_id, entity_type) DO UPDATE SET last_verified = now()`;
       // Shows must write the IMDb link here too, exactly as movies do. Omitting
       // it made ingest non-idempotent: resolveTitle adds the link on the NEXT

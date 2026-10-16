@@ -325,14 +325,20 @@ export async function availabilityFor(
  * because the caller's order is usually the point -- a trending list rendered
  * alphabetically is not a trending list.
  */
-export async function titlesByTmdbIds(ids: number[]): Promise<TitleSummary[]> {
-  if (ids.length === 0) return [];
+export async function titlesByTmdbIds(
+  items: { tmdbId: number; kind: string }[],
+): Promise<TitleSummary[]> {
+  if (items.length === 0) return [];
   const rows = await db()<TitleSummary[]>`
     SELECT id, slug, kind, title, release_year, poster_path, popularity::text, genres, tmdb_id
     FROM sem.title
-    WHERE tmdb_id = ANY(${ids.map(String)}) AND poster_path IS NOT NULL`;
-  const byTmdb = new Map(rows.map((r) => [String(r.tmdb_id), r]));
-  return ids.map((id) => byTmdb.get(String(id))).filter((r): r is TitleSummary => Boolean(r));
+    WHERE tmdb_id = ANY(${items.map((i) => String(i.tmdbId))}) AND poster_path IS NOT NULL`;
+  // Keyed by kind as well as number -- a movie and a show can share a TMDB id,
+  // and a bare-number map would let one silently overwrite the other.
+  const byTmdb = new Map(rows.map((r) => [`${r.kind}:${r.tmdb_id}`, r]));
+  return items
+    .map((i) => byTmdb.get(`${i.kind}:${i.tmdbId}`))
+    .filter((r): r is TitleSummary => Boolean(r));
 }
 
 export interface PersonSummary {

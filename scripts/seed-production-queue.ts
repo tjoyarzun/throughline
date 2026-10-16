@@ -45,7 +45,7 @@ async function localTitles(): Promise<{ tmdbId: number; kind: string }[]> {
       SELECT x.source_id, t.kind
       FROM core.external_id x
       JOIN core.title t ON t.id = x.entity_id
-      WHERE x.source = 'tmdb' AND x.entity_type = 'title'
+      WHERE x.source IN ('tmdb', 'tmdb_tv') AND x.entity_type = 'title'
       ORDER BY t.popularity DESC NULLS LAST`;
     return rows.map((r) => ({ tmdbId: Number(r.source_id), kind: r.kind }));
   } finally {

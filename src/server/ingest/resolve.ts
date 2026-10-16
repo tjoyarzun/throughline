@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { tmdbSource } from '../providers/tmdb/source';
 import { normalizeTitle, normalizePersonName } from './normalize';
 
 /**
@@ -99,15 +100,15 @@ export interface TitleCandidate {
  */
 export async function resolveTitle(sql: Sql, c: TitleCandidate): Promise<Resolution> {
   // 1. Exact primary-source match. ~97% of cases, because TMDB is the spine.
-  const byTmdb = await findByExternalId(sql, 'tmdb', String(c.tmdbId), 'title');
+  const src = tmdbSource(c.kind);
+  const byTmdb = await findByExternalId(sql, src, String(c.tmdbId), 'title');
   if (byTmdb) {
-    // TMDB numbers movies and TV in SEPARATE spaces -- movie 1402 is The
-    // Pursuit of Happyness, TV 1402 is The Walking Dead -- but external_id keys
-    // on the bare number. Without this check a show "resolved" to whichever
-    // movie shared its number, and the ingest that followed wrote the show's
-    // cast, network and seasons onto the movie. Silent corruption, found in
-    // production. Refusing loudly is the stopgap; the real fix is keying title
-    // ids by media type, the way upsertOrganization already does for orgs.
+    // Backstop, not the fix. Looking up by tmdbSource(kind) means a show can
+    // only ever match a show, so this cannot fire on clean data. It stays
+    // because the failure it guards against was SILENT -- a show resolving to a
+    // movie that shared its TMDB number, and the ingest that followed writing
+    // the show's cast, network and seasons onto that movie. If a row is ever
+    // filed under the wrong source, this refuses loudly instead.
     const [hit] = await sql<{ kind: string }[]>`SELECT kind FROM core.title WHERE id = ${byTmdb}`;
     if (hit && hit.kind !== c.kind) {
       throw new Error(
@@ -115,7 +116,7 @@ export async function resolveTitle(sql: Sql, c: TitleCandidate): Promise<Resolut
           `holding the same number; refusing to merge a ${c.kind} into a ${hit.kind}`,
       );
     }
-    await linkExternalId(sql, 'tmdb', String(c.tmdbId), 'title', byTmdb, true);
+    await linkExternalId(sql, src, String(c.tmdbId), 'title', byTmdb, true);
     if (c.imdbId) await linkExternalId(sql, 'imdb', c.imdbId, 'title', byTmdb, false);
     return { entityId: byTmdb, method: 'external_id', created: false };
   }
@@ -123,8 +124,17 @@ export async function resolveTitle(sql: Sql, c: TitleCandidate): Promise<Resolut
   // 2. Secondary-key crosswalk. How Wikidata and OMDb attach without duplicating.
   if (c.imdbId) {
     const byImdb = await findByExternalId(sql, 'imdb', c.imdbId, 'title');
-    if (byImdb) {
-      await linkExternalId(sql, 'tmdb', String(c.tmdbId), 'title', byImdb, true);
+    // IMDb ids are unique across movies and TV, so a crosswalk hit of the WRONG
+    // kind cannot be a real match -- it can only be an IMDb link planted by an
+    // earlier bad merge (exactly what the 1402 collision left on The Pursuit of
+    // Happyness). Fall through and resolve the title on its own merits rather
+    // than throwing: throwing would leave the show impossible to open, for good,
+    // because of somebody else's bad row.
+    const crossKind =
+      byImdb &&
+      (await sql<{ kind: string }[]>`SELECT kind FROM core.title WHERE id = ${byImdb}`)[0]?.kind;
+    if (byImdb && crossKind === c.kind) {
+      await linkExternalId(sql, src, String(c.tmdbId), 'title', byImdb, true);
       return { entityId: byImdb, method: 'crosswalk', created: false };
     }
   }
@@ -165,20 +175,20 @@ export async function resolveTitle(sql: Sql, c: TitleCandidate): Promise<Resolut
     // it, is a match. This is the common case for a title we already ingested
     // from another source.
     if (exact && runtimeOk && sharedCast >= 1) {
-      await linkExternalId(sql, 'tmdb', String(c.tmdbId), 'title', cand.id, true);
+      await linkExternalId(sql, src, String(c.tmdbId), 'title', cand.id, true);
       if (c.imdbId) await linkExternalId(sql, 'imdb', c.imdbId, 'title', cand.id, false);
       return { entityId: cand.id, method: 'blocking_exact', created: false };
     }
 
     if (Number(cand.sim) >= AUTO_MERGE_SIMILARITY && runtimeOk && sharedCast >= 1) {
-      await linkExternalId(sql, 'tmdb', String(c.tmdbId), 'title', cand.id, true);
+      await linkExternalId(sql, src, String(c.tmdbId), 'title', cand.id, true);
       if (c.imdbId) await linkExternalId(sql, 'imdb', c.imdbId, 'title', cand.id, false);
       return { entityId: cand.id, method: 'fuzzy_corroborated', created: false };
     }
 
     // 5. Similar but uncorroborated. Never guess — this is The Office case.
     if (Number(cand.sim) >= REVIEW_SIMILARITY) {
-      await queueReview(sql, 'title', 'tmdb', String(c.tmdbId), cand.id, Number(cand.sim), {
+      await queueReview(sql, 'title', src, String(c.tmdbId), cand.id, Number(cand.sim), {
         incoming: { title: c.title, year: c.releaseYear, runtime: c.runtimeMinutes },
         candidate: {
           sort_title: cand.sort_title,

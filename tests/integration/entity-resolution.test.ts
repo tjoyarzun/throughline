@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import postgres from 'postgres';
 import { resolveTitle, resolvePerson, mergeEntities, revertMerge } from '@/server/ingest/resolve';
 import { normalizeTitle, personSortName, slugify } from '@/server/ingest/normalize';
+import { tmdbSource } from '@/server/providers/tmdb/source';
 
 /**
  * Entity resolution against the cases that actually break naive matchers.
@@ -35,7 +36,7 @@ async function makeTitle(
             ${opts.year ? `${opts.year}-01-01` : null}, ${opts.runtime ?? null})
     RETURNING id`;
   await s`INSERT INTO core.external_id (source, source_id, entity_type, entity_id, is_primary)
-          VALUES ('tmdb', ${String(opts.tmdbId)}, 'title', ${row!.id}, true)`;
+          VALUES (${tmdbSource(opts.kind)}, ${String(opts.tmdbId)}, 'title', ${row!.id}, true)`;
   if (opts.imdbId) {
     await s`INSERT INTO core.external_id (source, source_id, entity_type, entity_id, is_primary)
             VALUES ('imdb', ${opts.imdbId}, 'title', ${row!.id}, false)`;
@@ -65,8 +66,11 @@ async function makePerson(
  */
 async function cleanup(s: ReturnType<typeof postgres>): Promise<void> {
   await s`DELETE FROM core.er_review WHERE incoming_source_id LIKE '9%'`;
-  await s`DELETE FROM core.external_id WHERE source_id LIKE '9%' AND source = 'tmdb'`;
-  await s`DELETE FROM core.external_id WHERE source = 'imdb' AND source_id = 'tt1856101'
+  await s`DELETE FROM core.external_id WHERE source_id LIKE '9%' AND source IN ('tmdb', 'tmdb_tv')`;
+  // Any IMDb link on a fixture title, whatever its id. Fixtures use tt9xxxxxx so
+  // they never collide with the seeded corpus -- an earlier test borrowed Blade
+  // Runner 2049's real tt1856101, and passed only in CI's empty database.
+  await s`DELETE FROM core.external_id WHERE source = 'imdb'
             AND entity_id IN (SELECT id FROM core.title WHERE slug LIKE ${PREFIX + '%'})`;
   await s`DELETE FROM core.entity_alias
           WHERE entity_id IN (SELECT id FROM core.person WHERE slug LIKE ${PREFIX + '%'})
@@ -126,11 +130,11 @@ run('entity resolution', () => {
       year: 2017,
       runtime: 164,
       tmdbId: 900002,
-      imdbId: 'tt1856101',
+      imdbId: 'tt9000002',
     });
     const r = await resolveTitle(sql, {
       tmdbId: 900099,
-      imdbId: 'tt1856101',
+      imdbId: 'tt9000002',
       kind: 'movie',
       title: 'Blade Runner 2049',
       releaseYear: 2017,
@@ -258,30 +262,61 @@ run('entity resolution', () => {
     expect(r.created).toBe(true);
   });
 
-  it('REFUSES to merge a show into a movie that shares its TMDB number', async () => {
+  it('keeps a movie and a show that share a TMDB number as TWO entities', async () => {
     // TMDB numbers movies and TV in SEPARATE spaces: movie 1402 is The Pursuit
-    // of Happyness, TV 1402 is The Walking Dead. external_id keys on the bare
-    // number, so resolving the show found the movie, reported "already have
-    // it", and the ingest wrote the show's cast, network and seasons onto the
-    // movie. Found in production on 2026-10-16 from a single search click.
-    await makeTitle(sql, {
+    // of Happyness, TV 1402 is The Walking Dead. external_id used to key on the
+    // bare number, so resolving the show found the movie, reported "already
+    // have it", and the ingest wrote the show's cast, network and seasons onto
+    // the movie. Found in production on 2026-10-16 from a single search click.
+    const movie = await makeTitle(sql, {
       slug: 'pursuit',
       kind: 'movie',
       title: 'The Pursuit of Happyness',
       year: 2006,
       tmdbId: 900099,
     });
-    await expect(
-      resolveTitle(sql, {
-        tmdbId: 900099,
-        imdbId: null,
-        kind: 'show',
-        title: 'The Walking Dead',
-        releaseYear: 2010,
-        runtimeMinutes: 44,
-        topCastTmdbIds: [],
-      }),
-    ).rejects.toThrow(/movie.*show|show.*movie/i);
+    const r = await resolveTitle(sql, {
+      tmdbId: 900099,
+      imdbId: null,
+      kind: 'show',
+      title: 'The Walking Dead',
+      releaseYear: 2010,
+      runtimeMinutes: 44,
+      topCastTmdbIds: [],
+    });
+    expect(r.created, 'the show must be its own entity').toBe(true);
+    expect(r.entityId).not.toBe(movie);
+
+    // And the movie's identity is exactly as it was -- nothing re-pointed.
+    const [held] = await sql<{ entity_id: string }[]>`
+      SELECT entity_id FROM core.external_id
+      WHERE source = 'tmdb' AND source_id = '900099' AND entity_type = 'title'`;
+    expect(held?.entity_id).toBe(movie);
+  });
+
+  it('does NOT follow an IMDb crosswalk onto a title of the other kind', async () => {
+    // The 1402 merge also linked the show's IMDb id to the movie. IMDb ids are
+    // unique across movies and TV, so a cross-kind hit can only be that kind of
+    // planted link -- following it would merge the show straight back in.
+    const movie = await makeTitle(sql, {
+      slug: 'planted',
+      kind: 'movie',
+      title: 'The Pursuit of Happyness',
+      year: 2006,
+      tmdbId: 900097,
+      imdbId: 'tt9000097',
+    });
+    const r = await resolveTitle(sql, {
+      tmdbId: 900098,
+      imdbId: 'tt9000097',
+      kind: 'show',
+      title: 'The Walking Dead',
+      releaseYear: 2010,
+      runtimeMinutes: 44,
+      topCastTmdbIds: [],
+    });
+    expect(r.method).not.toBe('crosswalk');
+    expect(r.entityId).not.toBe(movie);
   });
 
   it('DOES merge a same-year re-ingest corroborated by shared cast', async () => {
