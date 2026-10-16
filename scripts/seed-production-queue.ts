@@ -54,7 +54,7 @@ async function localTitles(): Promise<{ tmdbId: number; kind: string }[]> {
 }
 
 async function health(): Promise<{ titles: number; depth: number; failed: number }> {
-  const res = await fetch(`${SITE}/api/health`);
+  const res = await fetch(`${SITE}/api/admin/health`, { headers: AUTH });
   const body = (await res.json()) as {
     corpus?: { titles?: number };
     job_queue?: { depth?: number; failed_24h?: number };

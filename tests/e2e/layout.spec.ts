@@ -74,9 +74,16 @@ test.describe('gated routes', () => {
 });
 
 test.describe('public surfaces', () => {
-  test('health is reachable with no session', async ({ request }) => {
-    const res = await request.get('/api/health');
+  test('health is reachable with no session, and says only ok or not', async ({ request }) => {
+    const res = await request.get('/api/health', { failOnStatusCode: false });
     expect([200, 503]).toContain(res.status());
+    // The full report describes how sign-in is configured. Strangers get one key.
+    expect(Object.keys(await res.json())).toEqual(['status']);
+  });
+
+  test('the full health report needs the secret', async ({ request }) => {
+    const res = await request.get('/api/admin/health', { failOnStatusCode: false });
+    expect(res.status()).toBe(401);
   });
 
   test('the admin route returns 401, not a redirect', async ({ request }) => {

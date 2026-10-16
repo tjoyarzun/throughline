@@ -106,4 +106,5 @@ A custom loader maps requested width to the nearest TMDB bucket (`w92`/`w185`/`w
 - Structured JSON via `pino` to stdout: one line per mutation and per external call
   (`{ event, account_id, entity, duration_ms, status }`). Never log tokens, emails, or note bodies.
 - Sentry (free tier) for exceptions, Vercel Analytics for Web Vitals. No third product.
-- `/api/health` — see [deployment.md](deployment.md).
+- `/api/health` — public, `{ status }` only, CDN-cached 30s. The full report is `/api/admin/health`
+  (`CRON_SECRET`). See [deployment.md](deployment.md).

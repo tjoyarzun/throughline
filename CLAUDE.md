@@ -36,12 +36,12 @@ future leak cannot read back sent OTP codes. That was the worst-case path and it
 
 What shipped in this phase:
 
-|     | Item                                                                     | State                                                                                            |
-| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| 1   | Verify a Resend domain and move `EMAIL_FROM` off `onboarding@resend.dev` | Done — sending from `throughline.oyarzun.com`; `/api/health` reports `delivers_to_anyone: true`. |
-| 2   | Data export + account deletion                                           | Done                                                                                             |
-| 3   | Rate limiting on the auth endpoints and the path finder                  | Done                                                                                             |
-| 4   | axe-core accessibility pass (AC-31…36)                                   | Done                                                                                             |
+|     | Item                                                                     | State                                                                                                  |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| 1   | Verify a Resend domain and move `EMAIL_FROM` off `onboarding@resend.dev` | Done — sending from `throughline.oyarzun.com`; `/api/admin/health` reports `delivers_to_anyone: true`. |
+| 2   | Data export + account deletion                                           | Done                                                                                                   |
+| 3   | Rate limiting on the auth endpoints and the path finder                  | Done                                                                                                   |
+| 4   | axe-core accessibility pass (AC-31…36)                                   | Done                                                                                                   |
 
 **Two entity tables are legitimately sparse or empty, in both environments** — the code that
 fills them does not exist yet, so this is not a seeding gap. Do not "fix" it by re-running

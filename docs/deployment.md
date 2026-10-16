@@ -98,7 +98,9 @@ Failure posts to the alert channel and the deploy is rolled back.
 
 ## Health, not liveness
 
-`/api/health` asserts freshness **and** non-error state per job kind. A job that succeeds at doing
+`/api/health` asserts freshness **and** non-error state per job kind. Strangers see only the verdict
+(`{ status }`, cached 30s); the per-kind report behind it is `/api/admin/health`, which needs
+`CRON_SECRET`. A job that succeeds at doing
 nothing is not healthy — that is precisely how a scheduled sync elsewhere stayed dead for 13 days
 while recording success every 15 minutes.
 
@@ -138,7 +140,7 @@ down is what stops "I'll look at it later."
 ## Runbooks
 
 **TMDB circuit open.** Check TMDB status page. Verify the key is valid (`curl` the configuration
-endpoint). Confirm cached data is still serving (`/api/health` `tmdb.error_rate_1h`). If TMDB is up
+endpoint). Confirm cached data is still serving (`/api/admin/health` `tmdb.error_rate_1h`). If TMDB is up
 and we are still failing, check whether the rate limiter is mis-tuned; raise the breaker threshold
 only after confirming we are under 50 req/s.
 
@@ -159,7 +161,7 @@ Both fail. Runs in CI and in `housekeeping`.
 
 ## Data pipeline quality
 
-Checked nightly by `housekeeping`, surfaced on `/api/health`:
+Checked nightly by `housekeeping`, surfaced on `/api/admin/health`:
 
 | Check                                               | Threshold                                        | On breach                                       |
 | --------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------- |

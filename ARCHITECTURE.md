@@ -948,7 +948,7 @@ in this codebase:
 | `/api/search`, `/api/graph/search`, `/api/me/export`                  | session               | Route handler                                |
 | `/api/cron/{drain,housekeeping,refresh-degree,refresh-stale}`         | `CRON_SECRET`         | Route handler                                |
 | `/api/admin/*`                                                        | `CRON_SECRET` + admin | Route handler                                |
-| `/api/health`                                                         | **public**            | Route handler                                |
+| `/api/health` (status only)                                           | **public**            | Route handler                                |
 
 Which paths bypass the session gate is **data, not code** —
 [`src/lib/route-access.ts`](src/lib/route-access.ts) exports `PUBLIC_PREFIXES`,
