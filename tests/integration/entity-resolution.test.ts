@@ -258,6 +258,32 @@ run('entity resolution', () => {
     expect(r.created).toBe(true);
   });
 
+  it('REFUSES to merge a show into a movie that shares its TMDB number', async () => {
+    // TMDB numbers movies and TV in SEPARATE spaces: movie 1402 is The Pursuit
+    // of Happyness, TV 1402 is The Walking Dead. external_id keys on the bare
+    // number, so resolving the show found the movie, reported "already have
+    // it", and the ingest wrote the show's cast, network and seasons onto the
+    // movie. Found in production on 2026-10-16 from a single search click.
+    await makeTitle(sql, {
+      slug: 'pursuit',
+      kind: 'movie',
+      title: 'The Pursuit of Happyness',
+      year: 2006,
+      tmdbId: 900099,
+    });
+    await expect(
+      resolveTitle(sql, {
+        tmdbId: 900099,
+        imdbId: null,
+        kind: 'show',
+        title: 'The Walking Dead',
+        releaseYear: 2010,
+        runtimeMinutes: 44,
+        topCastTmdbIds: [],
+      }),
+    ).rejects.toThrow(/movie.*show|show.*movie/i);
+  });
+
   it('DOES merge a same-year re-ingest corroborated by shared cast', async () => {
     const id = await makeTitle(sql, {
       slug: 'arrival2',

@@ -101,6 +101,20 @@ export async function resolveTitle(sql: Sql, c: TitleCandidate): Promise<Resolut
   // 1. Exact primary-source match. ~97% of cases, because TMDB is the spine.
   const byTmdb = await findByExternalId(sql, 'tmdb', String(c.tmdbId), 'title');
   if (byTmdb) {
+    // TMDB numbers movies and TV in SEPARATE spaces -- movie 1402 is The
+    // Pursuit of Happyness, TV 1402 is The Walking Dead -- but external_id keys
+    // on the bare number. Without this check a show "resolved" to whichever
+    // movie shared its number, and the ingest that followed wrote the show's
+    // cast, network and seasons onto the movie. Silent corruption, found in
+    // production. Refusing loudly is the stopgap; the real fix is keying title
+    // ids by media type, the way upsertOrganization already does for orgs.
+    const [hit] = await sql<{ kind: string }[]>`SELECT kind FROM core.title WHERE id = ${byTmdb}`;
+    if (hit && hit.kind !== c.kind) {
+      throw new Error(
+        `resolveTitle: TMDB ${c.kind} ${c.tmdbId} collides with an existing ${hit.kind} ` +
+          `holding the same number; refusing to merge a ${c.kind} into a ${hit.kind}`,
+      );
+    }
     await linkExternalId(sql, 'tmdb', String(c.tmdbId), 'title', byTmdb, true);
     if (c.imdbId) await linkExternalId(sql, 'imdb', c.imdbId, 'title', byTmdb, false);
     return { entityId: byTmdb, method: 'external_id', created: false };
