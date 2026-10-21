@@ -1,4 +1,6 @@
-# Handoff — sessions of 2026-10-11 and 2026-10-12
+# Handoff — sessions of 2026-10-11 through 2026-10-21
+
+**Start here:** section 8 is the latest session and its open list supersedes section 6.
 
 What happened, what it cost, and what is still open. Written for whoever picks this up next,
 including me.
@@ -146,9 +148,12 @@ predicted verbatim — _"`vercel link` appends exactly that; if it comes back, d
 reordering."_ Delete line, do not reorder. `.env.example` is currently tracked so it survives today
 either way, which makes this a latent trap rather than a live one.
 
-**Vitest never reads `.env.local`.** `vitest run` takes no `--env-file` and `vitest.config.ts` loads
-no dotenv; CI supplies `DATABASE_URL` as a job-level env. Three integration tests fail locally and
-that is expected. Do not "fix" the config.
+**Vitest never reads `.env.local` — and never point it at `throughline_dev`.** CI supplies
+`DATABASE_URL` as a job-level env. Locally, integration tests skip unless you
+`set -a; source .env.local; set +a` first; `tests/setup.ts` then redirects them to
+`throughline_test` via `TEST_ADMIN_DATABASE_URL`. Since `dde5b98` it also **refuses to start** if
+`DATABASE_URL` names any database not ending in `_test`, because `idempotency.test.ts` TRUNCATEs
+`core.title … CASCADE` — see section 8. That is how to get CI parity locally: 429 tests, none skipped.
 
 **`.py` is invisible to every guard in this repo.** `check-locale`, `cspell` and prettier all match
 only `.ts/.tsx/.md/.css/.yaml/.yml/.sh/.json`. `scripts/make-icons.py` is the only file in
@@ -235,3 +240,58 @@ At ~2% of Hobby's allowance this is affordable rather than solved, and the disti
 it accelerates or another joins, the lever is a user-agent check in `middleware.ts` guarding
 `/explore/` — cheap, because middleware runs before the two graph queries that cost the money. That
 needs the agent string first.
+
+---
+
+## 8. Sessions of 2026-10-16 to 2026-10-21
+
+| Commit    | What                                                                        |
+| --------- | --------------------------------------------------------------------------- |
+| `06f0011` | Key title TMDB ids by media type (`tmdb` movies, `tmdb_tv` shows)           |
+| `f734e20` | Fix CI, red for 12 commits on one stale `streak` assertion                  |
+| `2ad6d3b` | Next.js 16.3.8 — **critical** RCE in `next/og`, reachable on public `/s/`   |
+| `a5c988f` | Close a sign-in open redirect, cap codes 5/hour/address, ESLint-ban raw SQL |
+| `f77ebfb` | `/api/health` says only `{status}`; full report at `/api/admin/health`      |
+| `dde5b98` | Tests refuse any database not named `*_test`                                |
+
+**Movie/show id collision.** TMDB numbers movies and TV separately — movie 1402 is _The Pursuit of
+Happyness_, TV 1402 is _The Walking Dead_ — but `core.external_id` keyed both as `('tmdb','1402')`,
+so the show was merged into the movie and its page 404'd. Shows now live under `tmdb_tv` (migration
+`0010`, applied in production). The **one** damaged production record was repaired by hand on
+2026-10-16 in a single count-checked transaction: 120 TV credits, 12 seasons, AMC, 2 genres, 6
+studios, 7 keywords and 63 `similar_to` rows removed; IMDb `tt1520211` moved to the real show;
+popularity reset. A scan for movies with seasons, `aired_on` edges or credits carrying
+`episode_count` now returns zero.
+
+**CI was red for a week and nobody saw it**, because the pre-push hook runs without a database and
+so skips 282 of 419 tests. Check `gh run list` after pushing. The gap is not closed.
+
+**Security pass.** No SQL injection: every query in `src/` is a tagged template, now enforced by
+ESLint (the metrics resolver's `sql.unsafe` is the one reviewed exception). The real findings were
+the Next.js advisory, an open redirect via `?next=` (`safeNextPath`), and sign-in code flooding
+(Better Auth limits per IP only). Still accepted: account enumeration on the send endpoint, and the
+dev-only esbuild advisory.
+
+**I wiped the local dev catalog** on 2026-10-16 by running the integration suite against
+`throughline_dev`. Production was never reachable. Restored the same week by streaming production's
+`core`/`raw` tables into dev with `COPY` (no `usr` data) — local `pg_dump` 17 refuses the Neon
+server, which is Postgres **18**. The `_test` guard exists because of this.
+
+**Costs (2026-10-21).** Neon's 368 compute-hours (~$40) were two one-time bursts: the initial import
+(Sept 21–28) and the hourly catch-up (Oct 12–15, awake 24 h/day). Steady state is ~3 h/day awake,
+an estimated 25–40 CU-hours/month. Autoscaling allows ~8 CU (inferred from `max_connections`
+3,604), which is what made the bursts expensive. Vercel usage this cycle was $1.76 on top of Pro.
+Reconstructed from `core.job`, which keeps every finished job with `finished_at` — a cheap audit
+trail for any future bill.
+
+**Open, in order** (all in Asana project `1217469158076973`, Backlog):
+
+1. **Drop Vercel to Hobby** — code ready; the project is under team `agora-innovations`, which may
+   need moving to the personal account first.
+2. **Cap Neon autoscaling at 1 CU** — console only.
+3. **Remove `DATABASE_URL_UNPOOLED_PROD` from `.env.local`** — the Neon owner credential, still
+   present for this session's investigations.
+4. **Decide on Neon Free** after a month on the cap. The tradeoff is restore history for `usr.*`.
+5. **Close the pre-push gap** — run the DB suite in the hook, or fail when tests skip.
+6. Then section 6 items 2–6: icon on device, concept hierarchy, `/explore` predicate count,
+   re-ingest propagation, character resolution.
