@@ -11,6 +11,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     # Integration and authorization tests need a real Postgres: RLS cannot be
     # unit-tested, because the point is that the DATABASE refuses. Plain
@@ -107,6 +108,7 @@ jobs:
   guards:
     # The checks must fail when they should. A green check that cannot go red is theater.
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -126,6 +128,7 @@ jobs:
     # overscroll banding that follows, needs a real browser to see. WebKit is
     # included because the app is phone-first and Safari is the actual target.
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # normal: ~4 min. A stalled apt mirror once hung playwright install; GitHub's default is 6 h.
     # e2e needs a database now. The share page is PUBLIC, so it is the one
     # route a signed-out visitor can reach that talks to Postgres -- without
     # one it threw, returned 500, and the sharing tests failed on every push
