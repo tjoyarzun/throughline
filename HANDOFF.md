@@ -1,6 +1,7 @@
-# Handoff — sessions of 2026-10-11 through 2026-10-21
+# Handoff — sessions of 2026-10-11 through 2026-10-22
 
-**Start here:** section 8 is the latest session and its open list supersedes section 6.
+**Start here:** section 9 is the latest session, and its open list is the current one. Sections 6
+and 8 carry older open lists kept for history.
 
 What happened, what it cost, and what is still open. Written for whoever picks this up next,
 including me.
@@ -284,7 +285,7 @@ an estimated 25–40 CU-hours/month. Autoscaling allows ~8 CU (inferred from `ma
 Reconstructed from `core.job`, which keeps every finished job with `finished_at` — a cheap audit
 trail for any future bill.
 
-**Open, in order** (all in Asana project `1217469158076973`, Backlog):
+**Open, in order** (superseded by section 9):
 
 1. **Drop Vercel to Hobby** — code ready; the project is under team `agora-innovations`, which may
    need moving to the personal account first.
@@ -295,3 +296,47 @@ trail for any future bill.
 5. **Close the pre-push gap** — run the DB suite in the hook, or fail when tests skip.
 6. Then section 6 items 2–6: icon on device, concept hierarchy, `/explore` predicate count,
    re-ingest propagation, character resolution.
+
+---
+
+## 9. Session of 2026-10-22 — a 40-minute backlog sweep
+
+| Commit    | What                                                                          |
+| --------- | ----------------------------------------------------------------------------- |
+| `a80eaad` | `/explore` shows predicates **in use / declared** — live it reads 12 / 21     |
+| `4d0cc90` | Remove dead config: `UPSTASH_*` in `.env.example`, `@neondatabase/serverless` |
+| `260df2e` | Every CI job gets `timeout-minutes` (verify 10, guards 5, e2e 15)             |
+
+**Predicates.** The task said 13 in use; the live count is **12** because `influenced_by` has no
+edges anymore. `ontologyStats()` now runs the same `count(DISTINCT predicate)` over `sem.edge` that
+`universeStats()` does, so the number tracks the corpus. The page caches stats for an hour.
+
+**Four Asana tasks closed without code**, because they were already done: the `/universe` loading
+skeleton (fixed in `0e0789d` on 2026-09-23 and verified structurally against the page, not by a
+measured CLS run), the Movie/TV toggle and the admin collapsible sections (both shipped `1e05481` on
+2026-09-25 and left open on unanswered questions). **The October code reviews filed at least one
+task for a bug that was already fixed** — check `git log` on the file before starting anything
+they raised.
+
+**CI hung, not failed.** An e2e run sat for 19 minutes in `playwright install --with-deps`, with
+`apt` stalled on Ubuntu's Azure mirror. With no `timeout-minutes`, GitHub would have waited six
+hours. Cancelled, rerun green in 3 minutes, and every job now has a limit several times its normal
+duration (verify 1–2 min, guards < 1, e2e 3–4).
+
+**`git add` and `.env.example`.** A local hook blocks any `git add` command whose text contains
+`.env`, which includes `.env.example`. Stage it with `git add -u` (or `-A`) instead of naming it.
+
+**Open, in order** — all in Asana project `1217469158076973`, Backlog:
+
+1. **Drop Vercel to Hobby** — yours, console only; code has been ready since `ca78b4e`. The project
+   sits under team `agora-innovations`, which may need moving to your personal account first.
+2. **Delete `UPSTASH_REDIS_REST_URL` and `_TOKEN` from Vercel** — yours. Nothing reads them;
+   `pnpm check-env` reports them as extra until they are gone.
+3. **Cap Neon autoscaling at 1 CU** — yours, console only.
+4. **Remove `DATABASE_URL_UNPOOLED_PROD` from `.env.local`** — the Neon owner credential.
+5. **Close the pre-push test gap** — the hook skips 282 of 429 tests. Recommended fix: run verify
+   with `.env.local` loaded, which `tests/setup.ts` now makes safe.
+6. **Decide on Neon Free** — after a month on the 1 CU cap.
+7. **Blur bug** — still waiting on the three phone tests in its 2026-09-25 Asana comment.
+8. Larger items, unchanged: concept hierarchy (P1, medium), re-ingest metadata propagation (P1,
+   needs a slug decision), `moods.yaml` (needs a predicate decision), character resolution.
