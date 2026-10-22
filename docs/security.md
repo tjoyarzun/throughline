@@ -198,7 +198,6 @@ read.
 | `DATABASE_URL`             | 180 days, or immediately on exposure                                 |
 | `BETTER_AUTH_SECRET`       | 365 days (rotating invalidates all sessions — schedule deliberately) |
 | `CRON_SECRET`              | 180 days                                                             |
-| `UPSTASH_*`                | 180 days                                                             |
 | Google OAuth client secret | 365 days                                                             |
 
 No secret is committed. `.env.example` documents names only. CI greps for
