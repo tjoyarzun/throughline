@@ -105,6 +105,8 @@ export interface OntologyStats {
   edges: number;
   concepts: number;
   predicates: number;
+  /** Predicates with at least one edge -- the honest half of "13 / 21". */
+  predicatesInUse: number;
 }
 
 /**
@@ -114,7 +116,9 @@ export interface OntologyStats {
  * decorative, and a claim like that should be accompanied by its numbers.
  * Predicates come from the generated ontology rather than a COUNT, because the
  * declared vocabulary is the real answer to "how many relationship types are
- * there" -- one that happens to have no rows yet still exists.
+ * there" -- one that happens to have no rows yet still exists. It is shown
+ * beside the in-use count, though: 21 alone overstates a vocabulary where 13
+ * carry data, and the public page is where a reviewer counts.
  */
 export async function ontologyStats(): Promise<OntologyStats> {
   const [row] = await db()<Omit<OntologyStats, 'predicates'>[]>`
@@ -123,7 +127,8 @@ export async function ontologyStats(): Promise<OntologyStats> {
            (SELECT count(*)::int FROM core.credit)  AS credits,
            (SELECT count(*)::int FROM core.edge)
              + (SELECT count(*)::int FROM core.edge_derived) AS edges,
-           (SELECT count(*)::int FROM core.concept) AS concepts`;
+           (SELECT count(*)::int FROM core.concept) AS concepts,
+           (SELECT count(DISTINCT predicate)::int FROM sem.edge) AS "predicatesInUse"`;
   return { ...row!, predicates: PREDICATES.length };
 }
 

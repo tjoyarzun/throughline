@@ -88,12 +88,12 @@ export default async function ExploreLanding() {
             ['credits', stats.credits],
             ['relationships', stats.edges],
             ['concepts', stats.concepts],
-            ['predicates', stats.predicates],
+            ['predicates', `${stats.predicatesInUse} / ${stats.predicates}`],
           ].map(([label, value]) => (
             <div key={label as string} className="flex gap-1.5">
               <dt>{label}</dt>
               <dd style={{ color: 'var(--tl-text-dim)' }}>
-                {Number(value).toLocaleString('en-US')}
+                {typeof value === 'number' ? value.toLocaleString('en-US') : value}
               </dd>
             </div>
           ))}
