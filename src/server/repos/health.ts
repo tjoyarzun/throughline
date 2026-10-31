@@ -198,7 +198,8 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     const pctInt = (a: number, b: number) => (b === 0 ? null : Math.round((100 * a) / b));
     const [fresh] = await sql<{ pct_fresh: number | null }[]>`
       SELECT round(100.0 * count(*) FILTER (
-               WHERE synced_at > now() - interval '7 days') / nullif(count(*), 0))::int
+               WHERE synced_at > now() - core.title_max_age(kind, status, release_date))
+               / nullif(count(*), 0))::int
              AS pct_fresh
       FROM core.title`;
 
@@ -270,7 +271,7 @@ export async function getHealth(databaseUrl: string): Promise<HealthReport> {
     // month" looks exactly like a healthy system.
     if ((corpus.pct_fresh ?? 100) < MIN_FRESH_PCT) {
       problems.push(
-        `only ${corpus.pct_fresh}% of titles synced in the last 7 days ` +
+        `only ${corpus.pct_fresh}% of titles synced within their max age (7 or 90 days) ` +
           `(below ${MIN_FRESH_PCT}%) — enqueue refresh_stale`,
       );
     }

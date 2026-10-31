@@ -463,3 +463,32 @@ BEGIN
   retry_after_s := greatest(1, ceil(extract(epoch FROM (w_start + p_window - now())))::int);
   RETURN NEXT;
 END $$;
+
+/* How old a title's TMDB sync may get before it counts as stale.
+
+   7 days for records that genuinely change -- a release in the last 180 days
+   or still ahead, or a show TMDB says is still airing or being made. 90 days
+   for everything else: a 2006 film's cast and runtime do not move.
+
+   A flat 7 days for all 5,045 titles needed ~720 refreshes a night against a
+   nightly budget of ~100, so freshness slid to 32% within two weeks of the
+   catch-up ending and /api/health sat at 503. Tiered and refreshed at half
+   age (below) it is ~200 a night: 334 weekly-tier titles every 3.5 days, the
+   other ~4,700 every 45.
+
+   ONE definition: refresh_stale picks work with it and /api/health measures
+   with it. The job refreshes at HALF this age so the measurement never trips,
+   and so titles synced together (the October catch-up) drift apart instead of
+   all expiring on the same night. */
+CREATE OR REPLACE FUNCTION core.title_max_age(p_kind text, p_status text, p_release date)
+RETURNS interval
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT CASE
+    WHEN p_release IS NULL OR p_release > current_date - 180 THEN interval '7 days'
+    WHEN p_kind = 'show'
+     AND p_status IN ('Returning Series', 'In Production', 'Planned', 'Pilot') THEN interval '7 days'
+    ELSE interval '90 days'
+  END
+$$;

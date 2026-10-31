@@ -134,7 +134,8 @@ export const HANDLERS: Record<string, Handler> = {
       FROM core.title t
       JOIN core.external_id x
         ON x.entity_type = 'title' AND x.entity_id = t.id AND x.source IN ('tmdb', 'tmdb_tv')
-      WHERE t.synced_at < now() - interval '7 days'
+      -- Half the allowed age: see core.title_max_age for why.
+      WHERE t.synced_at < now() - core.title_max_age(t.kind, t.status, t.release_date) / 2
       ORDER BY
         EXISTS (SELECT 1 FROM usr.title_state ts WHERE ts.title_id = t.id) DESC,
         (t.release_date IS NULL OR t.release_date > now()::date - interval '180 days') DESC,
@@ -155,7 +156,7 @@ export const HANDLERS: Record<string, Handler> = {
     // nightly trigger works through the backlog instead of nibbling at it.
     const [more] = await sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM core.title
-      WHERE synced_at < now() - interval '7 days'`;
+      WHERE synced_at < now() - core.title_max_age(kind, status, release_date) / 2`;
     if ((more?.n ?? 0) > 0) {
       await sql`SELECT core.enqueue_job('refresh_stale', ${sql.json({ batch } as never)})`;
     }

@@ -4,7 +4,8 @@ import { cronAuthorized, databaseUrl } from '@/server/jobs/cron-auth';
 import { drainQueue, enqueueJobKind } from '@/server/jobs/drain';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Hobby allows 300 (housekeeping already uses it); 60 gave ~100 refreshes a night.
+export const maxDuration = 300;
 
 /**
  * Nightly: refresh the stalest titles from TMDB.
@@ -43,7 +44,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   // on the queue either way and tomorrow's drain is the backstop.
   after(async () => {
     try {
-      await drainQueue(url, { budgetMs: 40_000 });
+      await drainQueue(url, { budgetMs: 240_000 });
     } catch {
       /* the queue keeps the work */
     }
