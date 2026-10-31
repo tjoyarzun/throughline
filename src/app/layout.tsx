@@ -4,6 +4,7 @@ import '@/styles/globals.css';
 import { THEME_COOKIE, isTheme, themeAttribute } from '@/lib/theme';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker';
 import { OfflineBanner } from '@/components/pwa/offline-banner';
+import { Analytics } from '@vercel/analytics/next';
 
 /**
  * The origin Next resolves relative metadata URLs against.
@@ -109,6 +110,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <OfflineBanner />
         {children}
         <ServiceWorkerRegistrar />
+        {/* Page views, no cookies. Same-origin (/_vercel/insights), so the CSP needs nothing new. */}
+        <Analytics />
       </body>
     </html>
   );
