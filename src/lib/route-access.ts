@@ -61,6 +61,29 @@ export const UNGATED_PREFIXES: readonly string[] = [
   ...SELF_AUTHENTICATING_PREFIXES,
 ];
 
+import { EXPLORE_OPENERS } from './explore-openers';
+
+const OPENER_PATHS = new Set(EXPLORE_OPENERS.map((o) => `/explore/${o.type}/${o.slug}`));
+
+/**
+ * Does this /explore page need a session?
+ *
+ * Signed-out visitors get the landing and the curated openers -- the portfolio
+ * surface a stranger is handed -- and nothing deeper. A crawler that ignores
+ * robots.txt was walking all ~70,000 node pages, each one two graph traversals
+ * that wake the database; this answers it in middleware, before any query.
+ *
+ * shortcut: middleware checks only that a session cookie is PRESENT, so a
+ * forged cookie gets past this. That is acceptable -- these pages hold public
+ * facts, and the target is a crawler, not an attacker. Verify the session in
+ * the page if a determined scraper ever turns up.
+ */
+export function exploreNeedsSession(pathname: string): boolean {
+  if (!pathname.startsWith('/explore/')) return false;
+  const path = pathname.replace(/\/+$/, '');
+  return path !== '/explore' && !OPENER_PATHS.has(path);
+}
+
 export function isUngated(pathname: string): boolean {
   return UNGATED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 }

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SEEN_COOKIE, latestReleaseDate } from '@/lib/whats-new';
 import { getSessionCookie } from 'better-auth/cookies';
-import { isUngated } from '@/lib/route-access';
+import { isUngated, exploreNeedsSession } from '@/lib/route-access';
 
 /**
  * Route-level gate — the first of three authorization layers (see
@@ -109,8 +109,8 @@ export function middleware(request: NextRequest): NextResponse {
   };
   const allow = () => apply(NextResponse.next({ request: { headers: requestHeaders } }));
 
-  if (isUngated(pathname)) return allow();
   if (getSessionCookie(request)) return allow();
+  if (isUngated(pathname) && !exploreNeedsSession(pathname)) return allow();
 
   // Preserve where they were going, so sign-in returns them there.
   const signIn = new URL('/auth/signin', request.url);

@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import { pooledDatabaseUrl } from '../db/resolve-url';
 import { PREDICATES, GRAPH_NODE_TYPES } from '@/lib/ontology/generated';
+import { EXPLORE_OPENERS } from '@/lib/explore-openers';
 
 /**
  * Stats for the Universe hub.
@@ -168,17 +169,7 @@ export interface FeaturedNode {
  * if every one of them misses, the page still opens on the best node the data
  * offers. Curation that fails closed would be worse than no curation.
  */
-const OPENERS: { type: string; slug: string }[] = [
-  { type: 'person', slug: 'christopher-nolan-525' },
-  { type: 'title', slug: '2001-a-space-odyssey-1968' },
-  { type: 'title', slug: 'the-godfather-1972' },
-  { type: 'person', slug: 'denis-villeneuve-137427' },
-  { type: 'title', slug: 'blade-runner-2049-2017' },
-  { type: 'title', slug: 'star-wars-1977' },
-  { type: 'title', slug: 'the-matrix-1999' },
-  { type: 'title', slug: 'the-odyssey-2026' },
-  { type: 'title', slug: 'jaws-1975' },
-];
+const OPENERS = EXPLORE_OPENERS;
 
 /**
  * Merge curated openers with data-ranked filler.

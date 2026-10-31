@@ -1,13 +1,15 @@
 import { test, expect } from '@playwright/test';
+import { AUTH_STATE } from './fixture-paths';
+import { EXPLORE_OPENERS } from '../../src/lib/explore-openers';
 
 /**
  * The public ontology pages.
  *
- * This is the one deep surface a stranger reaches from a link, so the tests
- * that matter are about what it exposes and what it does NOT: it must answer
- * without a session, and it must carry nothing belonging to anybody. The
- * e2e suite runs signed out by default, which is exactly the visitor being
- * modeled here.
+ * A stranger gets the landing and the curated openers; every other node page
+ * needs a session (exploreNeedsSession in src/lib/route-access.ts), because a
+ * crawler ignoring robots.txt was walking all ~70,000 of them. The e2e
+ * database holds only fixtures, not the real openers, so the node-page content
+ * tests run signed in and the gate gets tests of its own.
  */
 
 const PAGE = '/explore/title/e2e-fixture-film';
@@ -40,21 +42,23 @@ test.describe('public explore', () => {
    * reintroducing the bug.
    */
   for (const path of ['/explore', '/explore/title/e2e-fixture-film']) {
-    test(`${path} hydrates on a repeat request`, async ({ page }) => {
-      const violations: string[] = [];
-      page.on('console', (m) => {
-        if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) {
-          violations.push(m.text().slice(0, 120));
-        }
-      });
+    test.describe(path, () => {
+      if (path !== '/explore') test.use({ storageState: AUTH_STATE });
+      test(`${path} hydrates on a repeat request`, async ({ page }) => {
+        const violations: string[] = [];
+        page.on('console', (m) => {
+          if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) {
+            violations.push(m.text().slice(0, 120));
+          }
+        });
 
-      for (const pass of [1, 2]) {
-        violations.length = 0;
-        await page.goto(path, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(1200);
-        expect(violations, `CSP blocked scripts on pass ${pass} of ${path}`).toEqual([]);
+        for (const pass of [1, 2]) {
+          violations.length = 0;
+          await page.goto(path, { waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(1200);
+          expect(violations, `CSP blocked scripts on pass ${pass} of ${path}`).toEqual([]);
 
-        /* A canvas is asserted only when the data produced one. CI runs against
+          /* A canvas is asserted only when the data produced one. CI runs against
            a database holding just the e2e fixture -- no posters, no computed
            node degrees -- so the landing has nothing to draw and there is no
            canvas to measure. The CSP check above is the data-independent half
@@ -63,22 +67,42 @@ test.describe('public explore', () => {
            Not asserted via the nonce, either: browsers strip the nonce CONTENT
            attribute after parsing, so getAttribute returns "" by design and
            checking it tested nothing. */
-        const sized = await page.evaluate(() => {
-          const c = document.querySelector('canvas');
-          return c ? c.width > 400 : 'no-canvas';
-        });
-        if (sized !== 'no-canvas') {
-          expect(sized, `pass ${pass}: canvas present but never sized`).toBe(true);
+          const sized = await page.evaluate(() => {
+            const c = document.querySelector('canvas');
+            return c ? c.width > 400 : 'no-canvas';
+          });
+          if (sized !== 'no-canvas') {
+            expect(sized, `pass ${pass}: canvas present but never sized`).toBe(true);
+          }
         }
-      }
+      });
     });
   }
 
-  test('answers with no session at all', async ({ request }) => {
-    const res = await request.get(PAGE, { maxRedirects: 0, failOnStatusCode: false });
-    expect(res.status(), 'a public route must not bounce to sign-in').toBe(200);
+  test('a curated opener answers a stranger without a sign-in bounce', async ({ request }) => {
+    // The e2e database lacks the real opener, so 404 is fine here; a redirect is not.
+    const o = EXPLORE_OPENERS[0]!;
+    const res = await request.get(`/explore/${o.type}/${o.slug}`, {
+      maxRedirects: 0,
+      failOnStatusCode: false,
+    });
+    expect(res.status()).not.toBe(307);
     expect(res.headers()['location'] ?? '').not.toContain('/auth/signin');
   });
+
+  test('any deeper node page sends a stranger to sign-in, keeping the destination', async ({
+    request,
+  }) => {
+    const res = await request.get(PAGE, { maxRedirects: 0, failOnStatusCode: false });
+    expect(res.status()).toBe(307);
+    expect(decodeURIComponent(res.headers()['location'] ?? '')).toContain(
+      `/auth/signin?next=${PAGE}`,
+    );
+  });
+});
+
+test.describe('explore node pages, signed in', () => {
+  test.use({ storageState: AUTH_STATE });
 
   test('renders its relationships without JavaScript', async ({ request }) => {
     // The constellation is an enhancement. A crawler, a screen reader and a

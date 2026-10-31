@@ -3,10 +3,12 @@ import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   isUngated,
+  exploreNeedsSession,
   safeNextPath,
   SELF_AUTHENTICATING_PREFIXES,
   SESSION_GATED_API_ROUTES,
 } from '@/lib/route-access';
+import { EXPLORE_OPENERS } from '@/lib/explore-openers';
 
 /**
  * The session gate must not stand in front of routes that authenticate
@@ -95,5 +97,29 @@ describe('safeNextPath — where sign-in may send you', () => {
     'http://[',
   ])('refuses %j', (next) => {
     expect(safeNextPath(next)).toBe('/');
+  });
+});
+
+describe('exploreNeedsSession — how deep a stranger may go', () => {
+  it('leaves the landing and the curated openers open', () => {
+    expect(exploreNeedsSession('/explore')).toBe(false);
+    expect(exploreNeedsSession('/explore/')).toBe(false);
+    for (const o of EXPLORE_OPENERS) {
+      expect(exploreNeedsSession(`/explore/${o.type}/${o.slug}`), o.slug).toBe(false);
+      expect(exploreNeedsSession(`/explore/${o.type}/${o.slug}/`), `${o.slug}/`).toBe(false);
+    }
+  });
+
+  it('gates every other node page', () => {
+    expect(exploreNeedsSession('/explore/person/some-character-actor-12345')).toBe(true);
+    expect(exploreNeedsSession('/explore/organization/amc-174')).toBe(true);
+    // An opener slug under the wrong type is a different page.
+    expect(exploreNeedsSession('/explore/person/the-godfather-1972')).toBe(true);
+  });
+
+  it('does not touch anything outside /explore', () => {
+    for (const p of ['/', '/s/abc', '/universe/explore', '/explorer', '/api/health']) {
+      expect(exploreNeedsSession(p), p).toBe(false);
+    }
   });
 });
