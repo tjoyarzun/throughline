@@ -1,7 +1,7 @@
-# Handoff — sessions of 2026-10-11 through 2026-10-22
+# Handoff — sessions of 2026-10-11 through 2026-10-31
 
-**Start here:** section 9 is the latest session, and its open list is the current one. Sections 6
-and 8 carry older open lists kept for history.
+**Start here:** section 10 is the latest session, and its open list is the current one. Sections
+6, 8 and 9 carry older open lists kept for history.
 
 What happened, what it cost, and what is still open. Written for whoever picks this up next,
 including me.
@@ -326,7 +326,7 @@ duration (verify 1–2 min, guards < 1, e2e 3–4).
 **`git add` and `.env.example`.** A local hook blocks any `git add` command whose text contains
 `.env`, which includes `.env.example`. Stage it with `git add -u` (or `-A`) instead of naming it.
 
-**Open, in order** — all in Asana project `1217469158076973`, Backlog:
+**Open, in order** (superseded by section 10):
 
 1. **Drop Vercel to Hobby** — yours, console only; code has been ready since `ca78b4e`. The project
    sits under team `agora-innovations`, which may need moving to your personal account first.
@@ -340,3 +340,58 @@ duration (verify 1–2 min, guards < 1, e2e 3–4).
 7. **Blur bug** — still waiting on the three phone tests in its 2026-09-25 Asana comment.
 8. Larger items, unchanged: concept hierarchy (P1, medium), re-ingest metadata propagation (P1,
    needs a slug decision), `moods.yaml` (needs a predicate decision), character resolution.
+
+---
+
+## 10. Session of 2026-10-31 — back on Hobby, Neon capped
+
+| Commit    | What                                                                               |
+| --------- | ---------------------------------------------------------------------------------- |
+| `4167590` | Tiered freshness via `core.title_max_age`; refresh-stale gets 300 s / 240 s budget |
+| `274e052` | Signed-out `/explore` capped at the landing + 9 curated openers                    |
+| `6d5f7bd` | Vercel Web Analytics; middleware matcher skips `/_vercel`                          |
+
+**Both plans are down.** Vercel is on **Hobby** (Pro prorated to $14.84 for October). Neon's
+primary compute is **0.25 ↔ 1 CU**, confirmed from Postgres: `max_connections` 3,604 → 450,
+`effective_cache_size` 36 GB → 4 GB. **The old range was 1 ↔ 9 CU**, so every awake hour cost at
+least a full CU even idle — about 4x the 0.25 floor. Expect ~30 CU-hours/month from here.
+
+**Neon gotcha.** _Settings → Compute defaults_ only applies to computes created later. The running
+compute is edited under _Postgres database → Computes → Edit_. And `max_connections` is fixed at
+server start, so a cap change shows in Postgres only after the compute restarts. It is a reliable
+read of max CU: 443–450 at 1 CU, 3,604 at 9.
+
+**Freshness was structural.** A flat 7-day window over 5,045 titles needs ~720 refreshes a night;
+one nightly run managed ~100, so freshness fell 100% → 32% and `/api/health` sat at 503. Now:
+`core.title_max_age()` returns 7 days for releases within 180 days (or unreleased) and shows that
+are Returning Series / In Production / Planned / Pilot, else 90 days — 334 weekly titles, ~4,700
+quarterly. `refresh_stale` works at **half** that age so health never trips and the October
+catch-up cohort spreads out instead of expiring together in January. Production read 99–100%
+right after deploy.
+
+**The queue "stall" was the same budget.** Four jobs from Oct 30 kept missing the 40 s drain.
+One manual run of the new 240 s budget finished ~700 jobs and health went to `ok`. A second run,
+after the Hobby downgrade, kept finishing jobs at 90 s and 150 s — **Hobby allows the 300 s
+function**. Tonight's 03:00 UTC run is the first unattended one; check `/api/admin/health`.
+
+**`/explore` crawler cap.** Middleware sends any non-opener `/explore/<type>/<slug>` to sign-in
+when no session cookie is present — decided before any query, so a crawler no longer wakes
+Neon. Openers live in `src/lib/explore-openers.ts` (import-free, so middleware can load them);
+the gate is `exploreNeedsSession()` in `route-access.ts`. Cookie presence only, by design — a
+forged cookie passes; the pages are public facts. e2e now runs node-page content and a11y checks
+signed in, because the e2e database holds only fixtures.
+
+**Analytics.** `<Analytics />` in the root layout; `/_vercel/insights/script.js` serves to
+signed-out visitors. Collection needs _Project → Analytics → Enable_ in the Vercel dashboard.
+
+**Open, in order** — all in Asana project `1217469158076973`, Backlog:
+
+1. **Confirm tonight's first unattended nightly run** — `/api/admin/health` cron ages, and
+   freshness still ~100% tomorrow.
+2. **Delete `UPSTASH_REDIS_REST_URL` and `_TOKEN` from Vercel** — yours.
+3. **Remove `DATABASE_URL_UNPOOLED_PROD` from `.env.local`** — owner credential, still present.
+4. **Close the pre-push test gap** — hook skips 282 of 439 tests.
+5. **Late November: compare Neon's usage email to ~30 CU-hours**, then decide on Free.
+6. **Blur bug** — still waiting on the three phone tests.
+7. Larger items, unchanged: concept hierarchy, re-ingest metadata propagation, `moods.yaml`,
+   character resolution.
